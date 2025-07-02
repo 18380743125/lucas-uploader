@@ -1,20 +1,30 @@
 import eventRegistry, { IEventRegistry } from "./event";
 
-export interface UploaderConfig {
+export interface UploaderOptions {
+  // 上传目标地址
   target: string;
+  // 上传文件参数名
   fileParameterName?: string;
+  // 是否单文件上传
   singleFile?: boolean;
+  // 上传方式
   method?: "multipart";
+  // 请求头
   headers?: Record<string, string>;
+  // 是否携带 Cookie
   withCredentials?: boolean;
+  // 同时上传文件数量
   simultaneousUploads?: number;
+  // 分片上传
   chunkFlag?: boolean;
+  // 分片大小
   chunkSize?: number;
 }
 
+// 文件上传事件
 export type EventType = "added" | "progress" | "success" | "complete" | "error";
 
-const defaultConfig: UploaderConfig = {
+const defaultConfig: UploaderOptions = {
   target: "/",
   fileParameterName: "file",
   singleFile: false,
@@ -27,12 +37,12 @@ const defaultConfig: UploaderConfig = {
 };
 
 export class Uploader {
-  private readonly config: UploaderConfig;
+  private readonly options: UploaderOptions;
 
   private readonly event: IEventRegistry;
 
-  constructor(config: UploaderConfig = defaultConfig) {
-    this.config = config;
+  constructor(options: UploaderOptions = defaultConfig) {
+    this.options = options;
     this.event = eventRegistry;
   }
 
@@ -46,12 +56,12 @@ export class Uploader {
 
   /**
    * 指定 DOM 元素绑定文件选择功能
-   * @param node
+   * @param node DOM 元素
    */
-  public assignBrowse(node: HTMLElement) {
+  public assignBrowse(DOM: HTMLElement) {
     let input: HTMLInputElement;
-    if (node instanceof HTMLInputElement && node.type == "file") {
-      input = node;
+    if (DOM instanceof HTMLInputElement && DOM.type == "file") {
+      input = DOM;
     } else {
       input = document.createElement("input");
       input.setAttribute("type", "file");
@@ -61,44 +71,53 @@ export class Uploader {
         width: 0;
         height: 0;
       `;
-      node.appendChild(input);
-      node.addEventListener("click", function () {
+      DOM.appendChild(input);
+      DOM.addEventListener("click", function () {
         input.click();
       });
     }
-    if (!this.config.singleFile) {
+    if (!this.options.singleFile) {
       input.setAttribute("multiple", "multiple");
     }
     input.addEventListener("change", (e) => {
       const target = e.target as HTMLInputElement;
       if (target.files?.length) {
-        this.addFiles(target.files, e);
+        const files = Array.from(target.files);
+        this.addFiles(files, e);
       }
     });
   }
 
-  public assignDrop(node: HTMLElement) {
-    node.addEventListener("dragover", (e) => {
+  /**
+   * 指定 DOM 元素绑定文件拖拽功能
+   * @param node
+   */
+  public assignDrop(DOM: HTMLElement) {
+    DOM.addEventListener("dragover", (e) => {
       e.preventDefault();
     });
-    node.addEventListener("drop", (e) => {
+    DOM.addEventListener("drop", (e) => {
       e.preventDefault();
-      if (!e.dataTransfer?.files?.length) {
+      const tempFiles = e.dataTransfer?.files;
+      if (!tempFiles?.length) {
         return;
       }
-      let first = e.dataTransfer?.files[0];
+      let first = tempFiles[0];
 
-      let fileList: File[] = [];
-      if (this.config.singleFile) {
-        fileList = [first];
+      let files: File[] = [];
+      if (this.options.singleFile) {
+        files = [first];
       } else {
-        for (let i = 0; i < e.dataTransfer?.files?.length; i++) {
-          fileList.push(e.dataTransfer.files[i]);
-        }
+        files = Array.from(tempFiles);
       }
-      console.log(fileList);
+      this.addFiles(files, e);
     });
   }
 
-  private addFiles(files: FileList, e: Event) {}
+  /**
+   * 添加文件
+   * @param files 选择的文件
+   * @param e 事件对象
+   */
+  private addFiles(files: File[], e: Event) {}
 }

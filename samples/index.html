@@ -51,7 +51,7 @@
       const { Uploader } = Lucas;
       const uploadDOM = document.querySelector("#upload");
 
-      const uploader = new Uploader();
+      const uploader = new Uploader({ singleFile: true });
       uploader.assignBrowse(uploadDOM);
       uploader.assignDrop(uploadDOM);
     </script>
