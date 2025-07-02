@@ -1,0 +1,16 @@
+{
+  "name": "lucas-uploader",
+  "version": "1.0.0",
+  "description": "File upload tool library",
+  "main": "index.js",
+  "type": "module",
+  "types": "index.d.ts",
+  "files": [
+    "src",
+    "index.d.ts"
+  ],
+  "keywords": [],
+  "author": "geek-lucas",
+  "license": "MIT",
+  "packageManager": "pnpm@10.7.0"
+}
