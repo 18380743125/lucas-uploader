@@ -30,19 +30,30 @@
   <body>
     <div class="container">
       <div class="item">
-        <h3>大文件上传</h3>
-        <section class="upload_box" id="upload7">
-          <input type="file" class="upload_inp" />
-          <div class="upload_button_box">
-            <button class="upload_button select">上传图片</button>
+        <h3>拖拽上传</h3>
+        <section class="upload_box" id="upload">
+          <div class="upload_drag">
+            <i class="icon"></i>
+            <span class="text"
+              >将文件拖到此处，或<a href="javascript:" class="upload_submit"
+                >点击上传</a
+              ></span
+            >
           </div>
-          <div class="upload_progress">
-            <div class="value"></div>
-          </div>
+          <div class="upload_mark">正在上传中，请稍等...</div>
         </section>
       </div>
     </div>
 
-    <script type="module" src="../src/index.ts"></script>
+    <script src="/dist/index.js"></script>
+
+    <script>
+      const { Uploader } = Lucas;
+      const uploadDOM = document.querySelector("#upload");
+
+      const uploader = new Uploader();
+      uploader.assignBrowse(uploadDOM);
+      uploader.assignDrop(uploadDOM);
+    </script>
   </body>
 </html>

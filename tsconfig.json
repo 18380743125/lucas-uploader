@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "rootDir": ".",
+    "strict": true,
+    "moduleResolution": "node",
+    "target": "es5",
+    "noUnusedParameters": false,
+    "resolveJsonModule": true,
+    "noImplicitAny": false,
+    "module": "esnext",
+    "removeComments": false,
+    "lib": ["esnext", "dom"],
+    "baseUrl": ".",
+  },
+  "include": ["src"]
+}

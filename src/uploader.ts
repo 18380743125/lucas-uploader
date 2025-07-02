@@ -1,5 +1,19 @@
 import eventRegistry, { IEventRegistry } from "./event";
 
+export interface UploaderConfig {
+  target: string;
+  fileParameterName?: string;
+  singleFile?: boolean;
+  method?: "multipart";
+  headers?: Record<string, string>;
+  withCredentials?: boolean;
+  simultaneousUploads?: number;
+  chunkFlag?: boolean;
+  chunkSize?: number;
+}
+
+export type EventType = "added" | "progress" | "success" | "complete" | "error";
+
 const defaultConfig: UploaderConfig = {
   target: "/",
   fileParameterName: "file",
@@ -48,13 +62,9 @@ export class Uploader {
         height: 0;
       `;
       node.appendChild(input);
-      node.addEventListener(
-        "click",
-        function () {
-          input.click();
-        },
-        false
-      );
+      node.addEventListener("click", function () {
+        input.click();
+      });
     }
     if (!this.config.singleFile) {
       input.setAttribute("multiple", "multiple");
@@ -67,7 +77,28 @@ export class Uploader {
     });
   }
 
-  public assignDrop() {}
+  public assignDrop(node: HTMLElement) {
+    node.addEventListener("dragover", (e) => {
+      e.preventDefault();
+    });
+    node.addEventListener("drop", (e) => {
+      e.preventDefault();
+      if (!e.dataTransfer?.files?.length) {
+        return;
+      }
+      let first = e.dataTransfer?.files[0];
+
+      let fileList: File[] = [];
+      if (this.config.singleFile) {
+        fileList = [first];
+      } else {
+        for (let i = 0; i < e.dataTransfer?.files?.length; i++) {
+          fileList.push(e.dataTransfer.files[i]);
+        }
+      }
+      console.log(fileList);
+    });
+  }
 
   private addFiles(files: FileList, e: Event) {}
 }
