@@ -52,8 +52,15 @@
       const uploadDOM = document.querySelector("#upload");
 
       const uploader = new Uploader({ singleFile: true });
+
       uploader.assignBrowse(uploadDOM);
       uploader.assignDrop(uploadDOM);
+
+      uploader.on("added", (currentTasks, taskList, e) => {
+        console.log("currentTasks", currentTasks);
+        console.log("taskList", taskList);
+        console.log("e", e);
+      });
     </script>
   </body>
 </html>

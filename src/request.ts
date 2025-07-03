@@ -6,24 +6,15 @@ export interface RequestConfig {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   headers?: Record<string, string>;
   params?: Record<string, string | number | boolean>;
-  data?: any; // 请求体数据（支持 FormData）
-  timeout?: number; // 超时时间（毫秒）
+  data?: any;
+  timeout?: number;
 }
 
 /**
- * 响应数据
- */
-export interface ResponseData<T = any> {
-  code: number;
-  data: T;
-  message: string;
-}
-
-/**
- * 取消令牌（用于取消请求）
+ * 取消令牌
  */
 export interface CancelToken {
-  promise: Promise<undefined>;
+  promise: Promise<any>;
   reason?: undefined;
   throwIfRequested(): void;
 }
@@ -43,7 +34,7 @@ export function createCancelTokenSource(): CancelTokenSource {
   let cancelFn: (message?: string) => void;
   let canceled = false;
 
-  const promise = new Promise<undefined>((resolve) => {
+  const promise = new Promise((resolve) => {
     cancelFn = () => {
       canceled = true;
       resolve(undefined);
@@ -72,10 +63,10 @@ export function createCancelTokenSource(): CancelTokenSource {
 /**
  * 使用 XMLHttpRequest 封装请求（支持文件上传 + 进度监控 + 取消请求）
  */
-export function xhrRequest<T = any>(
+export function xhrRequest(
   config: RequestConfig,
   onUploadProgress?: (progressEvent: ProgressEvent) => void
-): Promise<ResponseData<T>> {
+): Promise<any> {
   return new Promise((resolve, reject) => {
     const {
       url,
@@ -115,7 +106,7 @@ export function xhrRequest<T = any>(
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const responseData: ResponseData<T> = JSON.parse(xhr.responseText);
+          const responseData = JSON.parse(xhr.responseText);
           resolve(responseData);
         } catch (error) {
           reject(new Error("Failed to parse response JSON"));
@@ -166,10 +157,10 @@ export function xhrRequest<T = any>(
 export function xhrRequestWithCancel<T = any>(
   config: RequestConfig,
   onUploadProgress?: (progressEvent: ProgressEvent) => void
-): { request: Promise<ResponseData<T>>; cancel: (message?: string) => void } {
+): { request: Promise<any>; cancel: (message?: string) => void } {
   const source = createCancelTokenSource();
 
-  const requestPromise = new Promise<ResponseData<T>>((resolve, reject) => {
+  const requestPromise = new Promise((resolve, reject) => {
     // 监听取消事件
     source.token.promise.then(() => {
       // 如果请求已取消，直接 reject
@@ -177,7 +168,7 @@ export function xhrRequestWithCancel<T = any>(
     });
 
     // 发起请求
-    xhrRequest<T>(config, onUploadProgress)
+    xhrRequest(config, onUploadProgress)
       .then(resolve)
       .catch((error) => {
         if (error.message === "Request canceled") {

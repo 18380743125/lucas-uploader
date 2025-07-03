@@ -3,6 +3,7 @@
     "rootDir": ".",
     "strict": true,
     "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
     "target": "es5",
     "noUnusedParameters": false,
     "resolveJsonModule": true,

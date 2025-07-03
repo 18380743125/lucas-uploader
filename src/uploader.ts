@@ -1,4 +1,6 @@
-import eventRegistry, { IEventRegistry } from "./event";
+import eventRegistry, { type IEventRegistry } from "./event";
+import { UploadTask, type IUploadTask } from "./task";
+import { MD5 } from "./utils";
 
 export interface UploaderOptions {
   // 上传目标地址
@@ -24,6 +26,14 @@ export interface UploaderOptions {
 // 文件上传事件
 export type EventType = "added" | "progress" | "success" | "complete" | "error";
 
+enum EventTypeEnum {
+  ADDED = "added",
+  PROGRESS = "progress",
+  SUCCESS = "success",
+  COMPLETE = "complete",
+  ERROR = "error",
+}
+
 const defaultConfig: UploaderOptions = {
   target: "/",
   fileParameterName: "file",
@@ -41,9 +51,12 @@ export class Uploader {
 
   private readonly event: IEventRegistry;
 
+  private readonly taskList: IUploadTask[];
+
   constructor(options: UploaderOptions = defaultConfig) {
     this.options = options;
     this.event = eventRegistry;
+    this.taskList = [];
   }
 
   on(eventName: EventType, eventFn: (...args: any[]) => unknown) {
@@ -119,5 +132,19 @@ export class Uploader {
    * @param files 选择的文件
    * @param e 事件对象
    */
-  private addFiles(files: File[], e: Event) {}
+  private async addFiles(files: File[], e: Event) {
+    const currentTasks: UploadTask[] = [];
+    for (const file of files) {
+      const identifier = await MD5(file);
+      const findTask = this.taskList.find((task) => task.id === identifier);
+      if (!findTask) {
+        const task = new UploadTask(identifier);
+        currentTasks.push(task);
+        this.taskList.push(task);
+      }
+    }
+    if (currentTasks.length) {
+      this.event.emit(EventTypeEnum.ADDED, currentTasks, this.taskList, e);
+    }
+  }
 }
