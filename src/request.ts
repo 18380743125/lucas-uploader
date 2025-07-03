@@ -3,7 +3,7 @@
  */
 export interface RequestConfig {
   url: string;
-  method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  method?: "GET" | "POST";
   headers?: Record<string, string>;
   params?: Record<string, string | number | boolean>;
   data?: any;
@@ -15,7 +15,6 @@ export interface RequestConfig {
  */
 export interface CancelToken {
   promise: Promise<any>;
-  reason?: undefined;
   throwIfRequested(): void;
 }
 
@@ -35,9 +34,9 @@ export function createCancelTokenSource(): CancelTokenSource {
   let canceled = false;
 
   const promise = new Promise((resolve) => {
-    cancelFn = () => {
+    cancelFn = (message?: string) => {
       canceled = true;
-      resolve(undefined);
+      resolve(message);
     };
   });
 
@@ -54,7 +53,7 @@ export function createCancelTokenSource(): CancelTokenSource {
     token,
     cancel(message?: string) {
       if (!canceled) {
-        cancelFn(message); // 调用 cancelFn（会设置 canceled = true）
+        cancelFn(message);
       }
     },
   };
@@ -66,7 +65,7 @@ export function createCancelTokenSource(): CancelTokenSource {
 export function xhrRequest(
   config: RequestConfig,
   onUploadProgress?: (progressEvent: ProgressEvent) => void
-): Promise<any> {
+) {
   return new Promise((resolve, reject) => {
     const {
       url,
@@ -154,28 +153,24 @@ export function xhrRequest(
 /**
  * 封装支持取消请求的 XHR 请求
  */
-export function xhrRequestWithCancel<T = any>(
+export function xhrRequestWithCancel(
   config: RequestConfig,
   onUploadProgress?: (progressEvent: ProgressEvent) => void
-): { request: Promise<any>; cancel: (message?: string) => void } {
+) {
   const source = createCancelTokenSource();
 
   const requestPromise = new Promise((resolve, reject) => {
     // 监听取消事件
-    source.token.promise.then(() => {
+    source.token.promise.then((message?: string) => {
       // 如果请求已取消，直接 reject
-      reject(new Error("Request canceled"));
+      reject(new Error(`Request canceled: ${message || null}`));
     });
 
     // 发起请求
     xhrRequest(config, onUploadProgress)
       .then(resolve)
       .catch((error) => {
-        if (error.message === "Request canceled") {
-          reject(error);
-        } else {
-          reject(error);
-        }
+        reject(error);
       });
   });
 

@@ -1,6 +1,6 @@
-import eventRegistry, { type IEventRegistry } from "./event";
-import { UploadTask, type IUploadTask } from "./task";
-import { MD5 } from "./utils";
+import { ConcurrentQueue } from "./request-queue";
+import { UploadTask, type IUploadTask } from "./upload-task";
+import { MD5, eventRegistry, type IEventRegistry } from "./utils";
 
 export interface UploaderOptions {
   // 上传目标地址
@@ -53,10 +53,15 @@ export class Uploader {
 
   private readonly taskList: IUploadTask[];
 
+  private readonly uploadTaskQueue: ConcurrentQueue;
+
   constructor(options: UploaderOptions = defaultConfig) {
-    this.options = options;
+    this.options = { ...defaultConfig, ...options };
     this.event = eventRegistry;
     this.taskList = [];
+    this.uploadTaskQueue = new ConcurrentQueue(
+      this.options.simultaneousUploads
+    );
   }
 
   on(eventName: EventType, eventFn: (...args: any[]) => unknown) {
@@ -138,13 +143,16 @@ export class Uploader {
       const identifier = await MD5(file);
       const findTask = this.taskList.find((task) => task.id === identifier);
       if (!findTask) {
-        const task = new UploadTask(identifier);
+        const { ...options } = this.options;
+        delete options.singleFile;
+        const task = new UploadTask(identifier, file, options);
         currentTasks.push(task);
         this.taskList.push(task);
       }
     }
     if (currentTasks.length) {
       this.event.emit(EventTypeEnum.ADDED, currentTasks, this.taskList, e);
+      currentTasks.forEach((task) => task.bootstrap());
     }
   }
 }
