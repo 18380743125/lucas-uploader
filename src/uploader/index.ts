@@ -1,6 +1,7 @@
-import { ConcurrentQueue } from "./request-queue";
-import { UploadTask, type IUploadTask } from "./upload-task";
-import { MD5, eventRegistry, type IEventRegistry } from "./utils";
+import { EventRegistry } from 'src/utils/event-registry';
+import { TaskQueue } from '../utils/task-queue';
+import { UploadTask } from './task';
+import { MD5 } from '../utils/md5';
 
 export interface UploaderOptions {
   // 上传目标地址
@@ -10,7 +11,7 @@ export interface UploaderOptions {
   // 是否单文件上传
   singleFile?: boolean;
   // 上传方式
-  method?: "multipart";
+  method?: 'multipart';
   // 请求头
   headers?: Record<string, string>;
   // 是否携带 Cookie
@@ -24,52 +25,50 @@ export interface UploaderOptions {
 }
 
 // 文件上传事件
-export type EventType = "added" | "progress" | "success" | "complete" | "error";
+export type EventType = 'added' | 'progress' | 'success' | 'complete' | 'error';
 
-enum EventTypeEnum {
-  ADDED = "added",
-  PROGRESS = "progress",
-  SUCCESS = "success",
-  COMPLETE = "complete",
-  ERROR = "error",
+export enum EventTypeEnum {
+  ADDED = 'added',
+  PROGRESS = 'progress',
+  SUCCESS = 'success',
+  COMPLETE = 'complete',
+  ERROR = 'error'
 }
 
 const defaultConfig: UploaderOptions = {
-  target: "/",
-  fileParameterName: "file",
+  target: '/',
+  fileParameterName: 'file',
   singleFile: false,
-  method: "multipart",
+  method: 'multipart',
   headers: {},
   withCredentials: false,
   simultaneousUploads: 3,
   chunkFlag: true,
-  chunkSize: 1 * 1024 * 1024,
+  chunkSize: 1 * 1024 * 1024
 };
 
-export class Uploader {
+export class LucasUploader {
   private readonly options: UploaderOptions;
 
-  private readonly event: IEventRegistry;
+  private readonly taskList: UploadTask[] = [];
 
-  private readonly taskList: IUploadTask[];
+  private readonly uploadTaskQueue: TaskQueue;
 
-  private readonly uploadTaskQueue: ConcurrentQueue;
+  private readonly eventRegistry: EventRegistry;
 
   constructor(options: UploaderOptions = defaultConfig) {
     this.options = { ...defaultConfig, ...options };
-    this.event = eventRegistry;
-    this.taskList = [];
-    this.uploadTaskQueue = new ConcurrentQueue(
-      this.options.simultaneousUploads
-    );
+    const { simultaneousUploads } = this.options;
+    this.uploadTaskQueue = new TaskQueue(simultaneousUploads);
+    this.eventRegistry = new EventRegistry();
   }
 
-  on(eventName: EventType, eventFn: (...args: any[]) => unknown) {
-    this.event.on(eventName, eventFn);
+  public on(eventName: EventType, eventFn: (...args: any[]) => unknown) {
+    this.eventRegistry.on(eventName, eventFn);
   }
 
-  off(eventName: EventType, eventFn: (...args: any[]) => unknown) {
-    this.event.off(eventName, eventFn);
+  public off(eventName: EventType, eventFn: (...args: any[]) => unknown) {
+    this.eventRegistry.off(eventName, eventFn);
   }
 
   /**
@@ -78,11 +77,11 @@ export class Uploader {
    */
   public assignBrowse(DOM: HTMLElement) {
     let input: HTMLInputElement;
-    if (DOM instanceof HTMLInputElement && DOM.type == "file") {
+    if (DOM instanceof HTMLInputElement && DOM.type == 'file') {
       input = DOM;
     } else {
-      input = document.createElement("input");
-      input.setAttribute("type", "file");
+      input = document.createElement('input');
+      input.setAttribute('type', 'file');
       input.style.cssText = `
         visibility: hidden;
         position: absolute;
@@ -90,14 +89,14 @@ export class Uploader {
         height: 0;
       `;
       DOM.appendChild(input);
-      DOM.addEventListener("click", function () {
+      DOM.addEventListener('click', function () {
         input.click();
       });
     }
     if (!this.options.singleFile) {
-      input.setAttribute("multiple", "multiple");
+      input.setAttribute('multiple', 'multiple');
     }
-    input.addEventListener("change", (e) => {
+    input.addEventListener('change', e => {
       const target = e.target as HTMLInputElement;
       if (target.files?.length) {
         const files = Array.from(target.files);
@@ -111,10 +110,10 @@ export class Uploader {
    * @param node
    */
   public assignDrop(DOM: HTMLElement) {
-    DOM.addEventListener("dragover", (e) => {
+    DOM.addEventListener('dragover', e => {
       e.preventDefault();
     });
-    DOM.addEventListener("drop", (e) => {
+    DOM.addEventListener('drop', e => {
       e.preventDefault();
       const tempFiles = e.dataTransfer?.files;
       if (!tempFiles?.length) {
@@ -141,18 +140,20 @@ export class Uploader {
     const currentTasks: UploadTask[] = [];
     for (const file of files) {
       const identifier = await MD5(file);
-      const findTask = this.taskList.find((task) => task.id === identifier);
+      const findTask = this.taskList.find(task => task.id === identifier);
       if (!findTask) {
-        const { ...options } = this.options;
-        delete options.singleFile;
-        const task = new UploadTask(identifier, file, options);
+        const task = new UploadTask(identifier, file, {
+          ...this.options,
+          taskQueue: this.uploadTaskQueue,
+          eventRegistry: this.eventRegistry
+        });
         currentTasks.push(task);
         this.taskList.push(task);
       }
     }
     if (currentTasks.length) {
-      this.event.emit(EventTypeEnum.ADDED, currentTasks, this.taskList, e);
-      currentTasks.forEach((task) => task.bootstrap());
+      this.eventRegistry.emit(EventTypeEnum.ADDED, currentTasks, this.taskList, e);
+      currentTasks.forEach(task => task.bootstrap());
     }
   }
 }

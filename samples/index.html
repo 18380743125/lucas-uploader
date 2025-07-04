@@ -15,52 +15,45 @@
       }
 
       .container {
-        padding: 20px 100px;
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-      }
-
-      .container .item h3 {
-        line-height: 40px;
+        padding: 60px 80px;
       }
     </style>
   </head>
 
   <body>
     <div class="container">
-      <div class="item">
-        <h3>拖拽上传</h3>
-        <section class="upload_box" id="upload">
-          <div class="upload_drag">
-            <i class="icon"></i>
-            <span class="text"
-              >将文件拖到此处，或<a href="javascript:" class="upload_submit"
-                >点击上传</a
-              ></span
-            >
-          </div>
-          <div class="upload_mark">正在上传中，请稍等...</div>
-        </section>
-      </div>
+      <section class="upload_box" id="upload">
+        <div class="upload_drag">
+          <i class="icon"></i>
+          <span class="text">将文件拖到此处，或<a href="javascript:" class="upload_submit">点击上传</a></span>
+        </div>
+        <div class="upload_mark">正在上传中，请稍等...</div>
+      </section>
     </div>
 
     <script src="/dist/index.js"></script>
 
     <script>
-      const { Uploader } = Lucas;
-      const uploadDOM = document.querySelector("#upload");
+      const { LucasUploader } = Lucas;
+      const uploadDOM = document.querySelector('#upload');
 
-      const uploader = new Uploader({
-        singleFile: true,
-        target: "https://14.103.231.136/api/file/chunk-upload",
+      const uploader = new LucasUploader({
+        target: 'https://14.103.231.136/api/file/chunk-upload',
+        headers: {
+          authorization:
+            'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0MDAxIiwiTE9HSU5fVVNFUl9JRCI6MTkzNzc3NzI2MzE4OTY4ODMyMCwiUkVORVdBTF9USU1FIjoxNzUxNjYzMjU1NTI3LCJleHAiOjE3NTE3MDY0NTV9.qFggKzaPaeIww8A9VkutDFHEx8pSZ6OLBnAg3HfNZWo'
+        }
       });
 
       uploader.assignBrowse(uploadDOM);
       uploader.assignDrop(uploadDOM);
 
-      uploader.on("added", (currentTasks, taskList, e) => {
-        console.log("added");
+      uploader.on('added', (currentTasks, taskList, e) => {
+        console.log('added');
+      });
+
+      uploader.on('error', message => {
+        console.log(message);
       });
     </script>
   </body>

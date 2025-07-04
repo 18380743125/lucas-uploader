@@ -1,3 +1,3 @@
-export { Uploader } from "./uploader";
+export { LucasUploader } from './uploader';
 
-export type { UploaderOptions, EventType } from "./uploader";
+export type { UploaderOptions, EventType } from './uploader';
