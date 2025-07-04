@@ -9,7 +9,6 @@ export interface RequestConfig {
 
 export interface CancelToken {
   promise: Promise<any>;
-  throwIfRequested(): void;
 }
 
 export interface CancelTokenSource {
@@ -28,17 +27,10 @@ export function createCancelTokenSource(): CancelTokenSource {
     };
   });
 
-  const token: CancelToken = {
-    promise,
-    throwIfRequested() {
-      if (canceled) {
-        throw new Error('Request canceled');
-      }
-    }
-  };
-
   return {
-    token,
+    token: {
+      promise
+    },
     cancel(message?: string) {
       if (!canceled) {
         cancelFn(message);
@@ -130,8 +122,6 @@ export function requestWithCancel(config: RequestConfig, onUploadProgress?: (pro
   let xhr: XMLHttpRequest | null = null;
 
   const requestPromise = new Promise((resolve, reject) => {
-    source.token.throwIfRequested();
-
     request(config, onUploadProgress, createdXhr => (xhr = createdXhr))
       .then(resolve)
       .catch(reject);

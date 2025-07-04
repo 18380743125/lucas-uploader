@@ -18,6 +18,7 @@ export function MD5(
     const spark = new sparkMD5.ArrayBuffer();
     const fileReader = new FileReader();
     let currentChunk = 0;
+
     fileReader.onload = function (e: any) {
       spark.append(e.target.result);
       currentChunk++;
@@ -30,14 +31,17 @@ export function MD5(
         resolve(spark.end());
       }
     };
+
     fileReader.onerror = function () {
-      reject(new Error(`FileReader error: ${fileReader.error?.message || 'Unknown error'}`));
+      reject(new Error(`FileReader error: ${fileReader.error?.message || null}`));
     };
+
     function loadNext() {
       const start = currentChunk * chunkSize;
       const end = start + chunkSize >= file.size ? file.size : start + chunkSize;
       fileReader.readAsArrayBuffer(blobSlice.call(file, start, end));
     }
+
     loadNext();
   });
 }

@@ -1,5 +1,7 @@
+type EventFn = (...args: any[]) => unknown;
+
 export class EventRegistry {
-  private readonly eventMap: Record<string, ((...args: any[]) => unknown)[]>;
+  private readonly eventMap: Record<string, EventFn[]>;
 
   constructor() {
     this.eventMap = {};

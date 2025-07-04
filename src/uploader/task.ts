@@ -60,12 +60,21 @@ export class UploadTask {
           data: fd
         });
 
-        return await request
+        return await request;
       };
       tasks.push({ fn: myTask });
     }
 
     const { id, promise } = taskQueue.enqueue(this.id, 3, tasks);
+
+    console.log('id', id);
+    promise
+      .then(res => {
+        console.log(res);
+      })
+      .catch(err => {
+        console.log(err);
+      });
   }
 
   public pause() {

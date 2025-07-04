@@ -39,10 +39,10 @@ export class TaskQueue {
    * @param subTasks 子任务数组
    * @param mainTaskFn 主任务前置逻辑
    */
-  enqueue<T>(
+  public enqueue<T>(
     id: string,
     subConcurrent: number,
-    subTasks: { fn: (signal?: AbortSignal) => Promise<T> }[],
+    subTasks: Omit<SubTask, 'id'>[],
     mainTaskFn?: () => Promise<void>
   ): { id: string; promise: Promise<T> } {
     if (this.taskMap.has(id)) {
@@ -68,8 +68,8 @@ export class TaskQueue {
       mainTaskFn,
       subTasks: subTaskInstances,
       subConcurrent,
-      controller,
       status: 'pending',
+      controller,
       resolve,
       reject
     };
@@ -84,7 +84,7 @@ export class TaskQueue {
   /**
    * 取消任务 包括取消子任务
    */
-  cancelTask(id: string) {
+  public cancelTask(id: string) {
     const task = this.taskMap.get(id);
     if (!task) return;
 
@@ -94,9 +94,12 @@ export class TaskQueue {
     this.taskMap.delete(id);
 
     // 从队列中移除
-    this.queue = this.queue.filter(t => t.id !== id);
+    this.queue = this.queue.filter(item => item.id !== id);
   }
 
+  /**
+   * 主任务并发调度
+   */
   private dequeue() {
     while (this.running < this.maxConcurrent && this.queue.length > 0) {
       const task = this.queue.shift()!;
@@ -105,6 +108,9 @@ export class TaskQueue {
     }
   }
 
+  /**
+   * 执行主任务
+   */
   private async executeMainTask(task: TaskRecord) {
     task.status = 'running';
 
@@ -113,8 +119,8 @@ export class TaskQueue {
       if (task.mainTaskFn) await task.mainTaskFn();
 
       // 执行子任务队列
-      await this.runSubtasks(task);
-      task.resolve('All tasks completed');
+      const results = await this.runSubtasks(task);
+      task.resolve(results);
       task.status = 'completed';
     } catch (err) {
       task.status = 'failed';
@@ -128,7 +134,7 @@ export class TaskQueue {
   }
 
   /**
-   * 子任务并发调度核心
+   * 子任务并发调度
    */
   private async runSubtasks(task: TaskRecord) {
     const { subTasks, subConcurrent, controller } = task;
@@ -138,7 +144,7 @@ export class TaskQueue {
     let hasError = false;
 
     while (index < subTasks.length || activeCount > 0) {
-      // 1. 填充并发槽
+      // 1.填充并发槽
       while (activeCount < subConcurrent && index < subTasks.length && !hasError) {
         if (controller.signal.aborted) {
           hasError = true;
