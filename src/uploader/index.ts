@@ -32,7 +32,8 @@ export enum EventTypeEnum {
   PROGRESS = 'progress',
   SUCCESS = 'success',
   COMPLETE = 'complete',
-  ERROR = 'error'
+  ERROR = 'error',
+  TASK_SUCCESS = 'task-success'
 }
 
 const defaultConfig: UploaderOptions = {
@@ -61,6 +62,14 @@ export class LucasUploader {
     const { simultaneousUploads } = this.options;
     this.uploadTaskQueue = new TaskQueue(simultaneousUploads);
     this.eventRegistry = new EventRegistry();
+
+    // 监听任务项是否完成
+    this.eventRegistry.on(EventTypeEnum.TASK_SUCCESS, (task: UploadTask) => {
+      this.taskList.splice(this.taskList.indexOf(task), 1);
+      if (this.taskList.length === 0) {
+        this.eventRegistry.emit(EventTypeEnum.COMPLETE);
+      }
+    });
   }
 
   public on(eventName: EventType, eventFn: (...args: any[]) => unknown) {

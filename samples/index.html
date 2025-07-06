@@ -52,6 +52,18 @@
         console.log('added');
       });
 
+      uploader.on('progress', currentTask => {
+        console.log('progress', currentTask);
+      });
+
+      uploader.on('success', currentTask => {
+        console.log('success', currentTask);
+      });
+
+      uploader.on('complete', result => {
+        console.log('complete', result);
+      });
+
       uploader.on('error', message => {
         console.log(message);
       });
