@@ -1,11 +1,16 @@
 type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
 
-interface SubTask<T = any> {
+export type TaskFn<T = any> = {
+  (signal?: AbortSignal): Promise<T>;
+  cancel?: () => void;
+};
+
+export interface SubTask<T = any> {
   id: string;
-  fn: (signal?: AbortSignal) => Promise<T>;
+  fn: TaskFn<T>;
 }
 
-interface TaskRecord<T = any> {
+export interface TaskRecord<T = any> {
   id: string; // 主任务 ID
   mainTaskFn?: () => Promise<void>; // 主任务前置逻辑
   subTasks: SubTask[]; // 子任务列表
@@ -44,7 +49,7 @@ export class TaskQueue {
     subConcurrent: number,
     subTasks: Omit<SubTask, 'id'>[],
     mainTaskFn?: () => Promise<void>
-  ): { id: string; promise: Promise<T> } {
+  ): Promise<T> {
     if (this.taskMap.has(id)) {
       throw new Error(`Task ${id} already exists`);
     }
@@ -78,7 +83,7 @@ export class TaskQueue {
     this.taskMap.set(id, taskRecord);
     this.dequeue();
 
-    return { id, promise };
+    return promise;
   }
 
   /**
@@ -95,6 +100,8 @@ export class TaskQueue {
 
     // 从队列中移除
     this.queue = this.queue.filter(item => item.id !== id);
+
+    return task
   }
 
   /**

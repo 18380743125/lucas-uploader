@@ -35,13 +35,21 @@
 
     <script>
       const { LucasUploader } = Lucas;
+
       const uploadDOM = document.querySelector('#upload');
 
       const uploader = new LucasUploader({
         target: 'https://14.103.231.136/api/file/chunk-upload',
+        // target: 'https://14.103.231.136/api/file/upload',
         headers: {
           authorization:
-            'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0MDAxIiwiTE9HSU5fVVNFUl9JRCI6MTkzNzc3NzI2MzE4OTY4ODMyMCwiUkVORVdBTF9USU1FIjoxNzUxNjYzMjU1NTI3LCJleHAiOjE3NTE3MDY0NTV9.qFggKzaPaeIww8A9VkutDFHEx8pSZ6OLBnAg3HfNZWo'
+            'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0MDAxIiwiTE9HSU5fVVNFUl9JRCI6MTkzNzc3NzI2MzE4OTY4ODMyMCwiUkVORVdBTF9USU1FIjoxNzUxOTExMjQwMjcwLCJleHAiOjE3NTE5NTQ0NDB9.HdEdXNg2a9fnwYgwD7GZmHaL8XTKVQUGXpvtGKccreo'
+        },
+        chunkSize: 256 * 1024,
+        chunkFlag: true,
+
+        getParams: file => {
+          return {};
         }
       });
 
@@ -53,15 +61,13 @@
       });
 
       uploader.on('progress', currentTask => {
-        console.log('progress', currentTask);
+        console.log(currentTask);
       });
 
-      uploader.on('success', currentTask => {
-        console.log('success', currentTask);
-      });
+      uploader.on('success', currentTask => {});
 
-      uploader.on('complete', result => {
-        console.log('complete', result);
+      uploader.on('complete', (result, currentTask) => {
+        console.log('complete', result, task);
       });
 
       uploader.on('error', message => {

@@ -2,12 +2,21 @@
   "name": "lucas-uploader",
   "version": "1.0.0",
   "description": "File upload tool library",
-  "main": "index.js",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "browser": "dist/index.js",
   "type": "module",
   "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "browser": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "files": [
-    "src",
-    "index.d.ts"
+    "dist"
   ],
   "keywords": [],
   "author": "geek-lucas",

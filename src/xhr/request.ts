@@ -135,7 +135,7 @@ export function requestWithCancel(config: RequestConfig, onUploadProgress?: (pro
   });
 
   return {
-    request: requestPromise,
+    requestPromise,
     cancel: (message?: string) => {
       source.cancel(message);
     }

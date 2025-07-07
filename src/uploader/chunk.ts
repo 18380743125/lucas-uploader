@@ -13,6 +13,8 @@ export class Chunk {
 
   public file: Blob;
 
+  public status: 'pending' | 'success' | 'fail';
+
   constructor(
     chunkNumber: number,
     chunkSize: number,
@@ -29,5 +31,6 @@ export class Chunk {
     this.filename = filename;
     this.totalChunks = totalChunks;
     this.file = file;
+    this.status = 'pending';
   }
 }

@@ -1,4 +1,4 @@
-import { EventRegistry } from 'src/utils/event-registry';
+import { EventRegistry } from '../utils/event-registry';
 import { TaskQueue } from '../utils/task-queue';
 import { UploadTask } from './task';
 import { MD5 } from '../utils/md5';
@@ -17,23 +17,27 @@ export interface UploaderOptions {
   // 是否携带 Cookie
   withCredentials?: boolean;
   // 同时上传文件数量
-  simultaneousUploads?: number;
+  simultaneousUploads: number;
   // 分片上传
   chunkFlag?: boolean;
   // 分片大小
   chunkSize?: number;
+  // 文件上传额外参数
+  getParams?: (file: File | Blob) => Record<string, any>;
 }
 
 // 文件上传事件
-export type EventType = 'added' | 'progress' | 'success' | 'complete' | 'error';
+export type EventType = 'added' | 'progress' | 'success' | 'complete' | 'error' | 'merge';
 
 export enum EventTypeEnum {
   ADDED = 'added',
   PROGRESS = 'progress',
   SUCCESS = 'success',
+  MERGE = 'merge',
   COMPLETE = 'complete',
   ERROR = 'error',
-  TASK_SUCCESS = 'task-success'
+  TASK_SUCCESS = 'task-success',
+  TASK_CANCEL = 'task-cancel'
 }
 
 const defaultConfig: UploaderOptions = {
@@ -63,12 +67,17 @@ export class LucasUploader {
     this.uploadTaskQueue = new TaskQueue(simultaneousUploads);
     this.eventRegistry = new EventRegistry();
 
-    // 监听任务项是否完成
-    this.eventRegistry.on(EventTypeEnum.TASK_SUCCESS, (task: UploadTask) => {
-      this.taskList.splice(this.taskList.indexOf(task), 1);
+    // 监听任务是否完成
+    this.eventRegistry.on(EventTypeEnum.TASK_SUCCESS, (_result, task: UploadTask) => {
+      task && this.taskList.splice(this.taskList.indexOf(task), 1);
       if (this.taskList.length === 0) {
-        this.eventRegistry.emit(EventTypeEnum.COMPLETE);
+        this.eventRegistry.emit(EventTypeEnum.COMPLETE, this);
       }
+    });
+
+    // 监听任务取消
+    this.eventRegistry.on(EventTypeEnum.TASK_CANCEL, (task: UploadTask) => {
+      this.taskList.splice(this.taskList.indexOf(task), 1);
     });
   }
 
@@ -109,7 +118,7 @@ export class LucasUploader {
       const target = e.target as HTMLInputElement;
       if (target.files?.length) {
         const files = Array.from(target.files);
-        this.addFiles(files, e);
+        this.createTask(files, e);
       }
     });
   }
@@ -136,7 +145,7 @@ export class LucasUploader {
       } else {
         files = Array.from(tempFiles);
       }
-      this.addFiles(files, e);
+      this.createTask(files, e);
     });
   }
 
@@ -145,11 +154,11 @@ export class LucasUploader {
    * @param files 选择的文件
    * @param e 事件对象
    */
-  private async addFiles(files: File[], e: Event) {
+  private async createTask(files: File[], e: Event) {
     const currentTasks: UploadTask[] = [];
     for (const file of files) {
       const identifier = await MD5(file);
-      const findTask = this.taskList.find(task => task.id === identifier);
+      const findTask = this.taskList.find(task => task.identifier === identifier);
       if (!findTask) {
         const task = new UploadTask(identifier, file, {
           ...this.options,
