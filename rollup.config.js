@@ -1,11 +1,9 @@
 import commonjs from '@rollup/plugin-commonjs';
 import resolve from '@rollup/plugin-node-resolve';
 import typescript from '@rollup/plugin-typescript';
+import { defineConfig } from 'rollup';
 
-/**
- * 默认导出一个数组，数组的每一个对象都是一个单独的导出文件配置，详细可查：https://www.rollupjs.com/guide/big-list-of-options
- */
-export default [
+export default defineConfig([
   {
     input: 'src/index.ts',
     output: [
@@ -29,7 +27,7 @@ export default [
     ],
     plugins: [
       // ts 支持
-      typescript({ sourceMap: true }),
+      typescript({ declaration: true, declarationDir: 'dist', rootDir: 'src', sourceMap: true }),
       // 路径补全
       resolve(),
       // CommonJS 转换
@@ -43,4 +41,4 @@ export default [
       warn(warning);
     }
   }
-];
+]);

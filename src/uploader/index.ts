@@ -1,7 +1,7 @@
 import { EventRegistry } from '../utils/event-registry';
+import { MD5 } from '../utils/md5';
 import { TaskQueue } from '../utils/task-queue';
 import { UploadTask } from './task';
-import { MD5 } from '../utils/md5';
 
 export interface UploaderOptions {
   // 上传目标地址
