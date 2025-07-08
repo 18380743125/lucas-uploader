@@ -46,7 +46,7 @@ export function request(
   onXHRCreated?: (xhr: XMLHttpRequest) => void
 ) {
   return new Promise((resolve, reject) => {
-    const {url, method = 'GET', headers = {}, params, data, timeout = 5 * 60 * 1000} = config;
+    const { url, method = 'GET', headers = {}, params, data, timeout = 5 * 60 * 1000 } = config;
 
     let requestUrl = url;
     if (method.toUpperCase() === 'GET' && params) {

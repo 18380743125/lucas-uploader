@@ -1,8 +1,8 @@
-import {EventTypeEnum, UploaderOptions} from '.';
-import {EventRegistry} from '../utils/event-registry';
-import {SubTask, TaskFn, TaskQueue} from '../utils/task-queue';
-import {request, requestWithCancel} from '../xhr/request';
-import {Chunk} from './chunk';
+import { EventTypeEnum, UploaderOptions } from '.';
+import { EventRegistry } from '../utils/event-registry';
+import { SubTask, TaskFn, TaskQueue } from '../utils/task-queue';
+import { request, requestWithCancel } from '../utils/request';
+import { Chunk } from './chunk';
 
 type TaskOptions = UploaderOptions & { taskQueue: TaskQueue; eventRegistry: EventRegistry };
 
@@ -89,7 +89,7 @@ export class UploadTask {
    * 启动任务
    */
   public bootstrap() {
-    const {eventRegistry} = this.options;
+    const { eventRegistry } = this.options;
 
     this.status = fileStatus.PARSING;
     eventRegistry.emit(EventTypeEnum.PROGRESS, this);
@@ -101,7 +101,7 @@ export class UploadTask {
    * 暂停任务
    */
   public pause() {
-    const {taskQueue} = this.options;
+    const { taskQueue } = this.options;
 
     if (this.status === fileStatus.UPLOADING) {
       const task = taskQueue.cancelTask(this.identifier);
@@ -121,7 +121,7 @@ export class UploadTask {
    */
   public resume() {
     if (this.status === fileStatus.PAUSE) {
-      this.pushTaskQueue();
+      Promise.resolve(() => this.pushTaskQueue());
     }
   }
 
@@ -129,14 +129,14 @@ export class UploadTask {
    * 重试
    */
   public retry() {
-    this.pushTaskQueue();
+    Promise.resolve(() => this.pushTaskQueue());
   }
 
   /**
    * 取消任务
    */
   public abort() {
-    const {taskQueue, eventRegistry} = this.options;
+    const { taskQueue, eventRegistry } = this.options;
 
     const task = taskQueue.cancelTask(this.identifier);
 
@@ -156,7 +156,7 @@ export class UploadTask {
    * 分片上传任务
    */
   private async chunkTask() {
-    const {eventRegistry} = this.options;
+    const { eventRegistry } = this.options;
 
     // 查询已查询的分片
     try {
@@ -180,7 +180,7 @@ export class UploadTask {
    * 加入任务队列
    */
   private pushTaskQueue(): void {
-    const {eventRegistry, taskQueue, simultaneousUploads, chunkFlag} = this.options;
+    const { eventRegistry, taskQueue, simultaneousUploads, chunkFlag } = this.options;
 
     this.status = fileStatus.WAITING;
     eventRegistry.emit(EventTypeEnum.PROGRESS, this);
@@ -208,7 +208,7 @@ export class UploadTask {
       })
       .catch(err => {
         if (err === 'canceled') {
-          return
+          return;
         }
         this.status = fileStatus.FAIL;
         eventRegistry.emit(EventTypeEnum.ERROR, err, this);
@@ -219,7 +219,7 @@ export class UploadTask {
    * 生成分片任务
    */
   private generateChunkTask(): ChunkTasks {
-    const {eventRegistry, getParams} = this.options;
+    const { eventRegistry, getParams } = this.options;
 
     const tasks: Omit<SubTask, 'id'>[] = [];
 
@@ -307,7 +307,7 @@ export class UploadTask {
           }
         };
 
-        const {requestPromise, cancel} = requestWithCancel(
+        const { requestPromise, cancel } = requestWithCancel(
           {
             url: this.options.target,
             method: 'POST',
@@ -328,11 +328,10 @@ export class UploadTask {
           eventRegistry.emit(EventTypeEnum.SUCCESS, result, this);
 
           return result;
-        } catch (err) {
-        }
+        } catch (err) {}
       };
 
-      tasks.push({fn: myTask});
+      tasks.push({ fn: myTask });
     }
 
     return tasks;
@@ -342,7 +341,7 @@ export class UploadTask {
    * 查询已上传的分片编号
    */
   private async getUploadedChunkNumber(): Promise<number[]> {
-    const {chunkFlag} = this.options;
+    const { chunkFlag } = this.options;
     if (!chunkFlag) {
       return [];
     }
@@ -366,7 +365,7 @@ export class UploadTask {
    * 生成分片记录
    */
   private generateChunks(): void {
-    const {chunkSize, chunkFlag} = this.options;
+    const { chunkSize, chunkFlag } = this.options;
 
     this.chunks = [];
     const _file = this.file;
