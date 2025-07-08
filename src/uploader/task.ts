@@ -109,9 +109,9 @@ export class UploadTask {
 
       if (task) {
         // 取消请求
-        task.subTasks.forEach(subTask => {
-          subTask.fn.cancel?.();
-        });
+        // task.subTasks.forEach(subTask => {
+        //   subTask.fn.cancel?.();
+        // });
       }
     }
   }
@@ -121,7 +121,9 @@ export class UploadTask {
    */
   public resume() {
     if (this.status === fileStatus.PAUSE) {
-      Promise.resolve(() => this.pushTaskQueue());
+      setTimeout(() => {
+        this.pushTaskQueue();
+      }, 0);
     }
   }
 
@@ -129,7 +131,9 @@ export class UploadTask {
    * 重试
    */
   public retry() {
-    Promise.resolve(() => this.pushTaskQueue());
+    setTimeout(() => {
+      this.pushTaskQueue();
+    }, 0);
   }
 
   /**

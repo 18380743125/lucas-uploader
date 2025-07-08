@@ -11,23 +11,23 @@ export default defineConfig([
         file: 'dist/index.js',
         format: 'iife',
         name: 'Lucas',
-        sourcemap: true
+        sourcemap: false
       },
       {
         file: 'dist/index.mjs',
         format: 'esm',
-        sourcemap: true
+        sourcemap: false
       },
       {
         file: 'dist/index.cjs',
         format: 'cjs',
         exports: 'auto',
-        sourcemap: true
+        sourcemap: false
       }
     ],
     plugins: [
       // ts 支持
-      typescript({ declaration: true, declarationDir: 'dist', rootDir: 'src', sourceMap: true }),
+      typescript({ declaration: true, declarationDir: 'dist', rootDir: 'src', sourceMap: false }),
       // 路径补全
       resolve(),
       // CommonJS 转换
