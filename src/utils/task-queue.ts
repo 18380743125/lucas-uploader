@@ -95,7 +95,7 @@ export class TaskQueue {
 
     task.controller.abort();
     task.status = 'failed';
-    task.reject('Task aborted by user');
+    task.reject('canceled');
     this.taskMap.delete(id);
 
     // 从队列中移除

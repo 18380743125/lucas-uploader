@@ -155,7 +155,10 @@ export class UploadTask {
     try {
       this.uploadedChunkNumber = await this.getUploadedChunkNumber();
     } catch (err) {
-      eventRegistry.emit(EventTypeEnum.ERROR, err, this);
+      if (err === 'canceled') {
+      } else {
+        eventRegistry.emit(EventTypeEnum.ERROR, err, this);
+      }
       return;
     }
 
@@ -189,17 +192,21 @@ export class UploadTask {
       eventRegistry.emit(EventTypeEnum.PROGRESS, this);
     };
 
-    const promise = taskQueue.enqueue(this.identifier, simultaneousUploads, tasks, mainTaskFn);
+    try {
+      const promise = taskQueue.enqueue(this.identifier, simultaneousUploads, tasks, mainTaskFn);
 
-    promise
-      .then(res => {
-        this.status = fileStatus.SUCCESS;
-        eventRegistry.emit(EventTypeEnum.TASK_SUCCESS, res, this);
-      })
-      .catch(err => {
-        this.status = fileStatus.FAIL;
-        eventRegistry.emit(EventTypeEnum.ERROR, err, this);
-      });
+      promise
+        .then(res => {
+          this.status = fileStatus.SUCCESS;
+          eventRegistry.emit(EventTypeEnum.TASK_SUCCESS, res, this);
+        })
+        .catch(err => {
+          this.status = fileStatus.FAIL;
+          eventRegistry.emit(EventTypeEnum.ERROR, err, this);
+        });
+    } catch (error) {
+      console.warn(error);
+    }
   }
 
   /**
