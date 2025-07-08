@@ -39,7 +39,7 @@ payload {
 
 ### 3.分片上传：/file/chunk-upload POST
 ```markdown
-    payload（FormData 格式） {
+payload（FormData 格式） {
     "chunkNumber": 10,
     "chunkSize": 2097152,
     "currentChunkSize": 2097152,

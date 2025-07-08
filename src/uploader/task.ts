@@ -104,8 +104,15 @@ export class UploadTask {
     const {taskQueue} = this.options;
 
     if (this.status === fileStatus.UPLOADING) {
-      taskQueue.cancelTask(this.identifier);
+      const task = taskQueue.cancelTask(this.identifier);
       this.status = fileStatus.PAUSE;
+
+      if (task) {
+        // 取消请求
+        task.subTasks.forEach(subTask => {
+          subTask.fn.cancel?.();
+        });
+      }
     }
   }
 
@@ -192,21 +199,20 @@ export class UploadTask {
       eventRegistry.emit(EventTypeEnum.PROGRESS, this);
     };
 
-    try {
-      const promise = taskQueue.enqueue(this.identifier, simultaneousUploads, tasks, mainTaskFn);
+    const promise = taskQueue.enqueue(this.identifier, simultaneousUploads, tasks, mainTaskFn);
 
-      promise
-        .then(res => {
-          this.status = fileStatus.SUCCESS;
-          eventRegistry.emit(EventTypeEnum.TASK_SUCCESS, res, this);
-        })
-        .catch(err => {
-          this.status = fileStatus.FAIL;
-          eventRegistry.emit(EventTypeEnum.ERROR, err, this);
-        });
-    } catch (error) {
-      console.warn(error);
-    }
+    promise
+      .then(res => {
+        this.status = fileStatus.SUCCESS;
+        eventRegistry.emit(EventTypeEnum.TASK_SUCCESS, res, this);
+      })
+      .catch(err => {
+        if (err === 'canceled') {
+          return
+        }
+        this.status = fileStatus.FAIL;
+        eventRegistry.emit(EventTypeEnum.ERROR, err, this);
+      });
   }
 
   /**
@@ -313,14 +319,17 @@ export class UploadTask {
 
         myTask.cancel = cancel;
 
-        const result = await requestPromise;
+        try {
+          const result = await requestPromise;
 
-        totalUploaded += chunk.currentChunkSize;
-        chunk.status = 'success';
+          totalUploaded += chunk.currentChunkSize;
+          chunk.status = 'success';
 
-        eventRegistry.emit(EventTypeEnum.SUCCESS, result, this);
+          eventRegistry.emit(EventTypeEnum.SUCCESS, result, this);
 
-        return result;
+          return result;
+        } catch (err) {
+        }
       };
 
       tasks.push({fn: myTask});
