@@ -8,7 +8,7 @@ import sparkMD5 from 'spark-md5';
  */
 export function MD5(
   _file: File,
-  chunkSize: number = 1024 * 1024 * 1,
+  chunkSize: number = 512 * 1024,
   onProgress?: (progress: { currentChunk: number; chunks: number }) => void
 ) {
   return new Promise<string>((resolve, reject) => {

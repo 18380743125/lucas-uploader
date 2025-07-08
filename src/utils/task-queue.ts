@@ -25,7 +25,7 @@ export interface TaskRecord<T = any> {
  * 主任务 + 子任务的双层并发队列
  */
 export class TaskQueue {
-  private maxConcurrent: number; // 主任务最大并发数
+  private readonly maxConcurrent: number; // 主任务最大并发数
   private running: number; // 当前运行的主任务数
   private queue: TaskRecord[]; // 主任务等待队列
   private taskMap: Map<string, TaskRecord>; // 主任务状态

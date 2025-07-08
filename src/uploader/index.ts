@@ -49,7 +49,7 @@ const defaultConfig: UploaderOptions = {
   withCredentials: false,
   simultaneousUploads: 3,
   chunkFlag: true,
-  chunkSize: 1 * 1024 * 1024
+  chunkSize: 512 * 1024
 };
 
 export class LucasUploader {
@@ -91,7 +91,7 @@ export class LucasUploader {
 
   /**
    * 指定 DOM 元素绑定文件选择功能
-   * @param node DOM 元素
+   * @param DOM
    */
   public assignBrowse(DOM: HTMLElement) {
     let input: HTMLInputElement;
@@ -125,7 +125,7 @@ export class LucasUploader {
 
   /**
    * 指定 DOM 元素绑定文件拖拽功能
-   * @param node
+   * @param DOM
    */
   public assignDrop(DOM: HTMLElement) {
     DOM.addEventListener('dragover', e => {

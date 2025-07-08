@@ -1,8 +1,8 @@
-import { EventTypeEnum, UploaderOptions } from '.';
-import { EventRegistry } from '../utils/event-registry';
-import { SubTask, TaskFn, TaskQueue } from '../utils/task-queue';
-import { request, requestWithCancel } from '../xhr/request';
-import { Chunk } from './chunk';
+import {EventTypeEnum, UploaderOptions} from '.';
+import {EventRegistry} from '../utils/event-registry';
+import {SubTask, TaskFn, TaskQueue} from '../utils/task-queue';
+import {request, requestWithCancel} from '../xhr/request';
+import {Chunk} from './chunk';
 
 type TaskOptions = UploaderOptions & { taskQueue: TaskQueue; eventRegistry: EventRegistry };
 
@@ -89,7 +89,7 @@ export class UploadTask {
    * 启动任务
    */
   public bootstrap() {
-    const { eventRegistry } = this.options;
+    const {eventRegistry} = this.options;
 
     this.status = fileStatus.PARSING;
     eventRegistry.emit(EventTypeEnum.PROGRESS, this);
@@ -101,7 +101,7 @@ export class UploadTask {
    * 暂停任务
    */
   public pause() {
-    const { taskQueue } = this.options;
+    const {taskQueue} = this.options;
 
     if (this.status === fileStatus.UPLOADING) {
       taskQueue.cancelTask(this.identifier);
@@ -121,7 +121,7 @@ export class UploadTask {
   /**
    * 重试
    */
-  public rerty() {
+  public retry() {
     this.pushTaskQueue();
   }
 
@@ -129,7 +129,7 @@ export class UploadTask {
    * 取消任务
    */
   public abort() {
-    const { taskQueue, eventRegistry } = this.options;
+    const {taskQueue, eventRegistry} = this.options;
 
     const task = taskQueue.cancelTask(this.identifier);
 
@@ -149,12 +149,11 @@ export class UploadTask {
    * 分片上传任务
    */
   private async chunkTask() {
-    const { eventRegistry } = this.options;
+    const {eventRegistry} = this.options;
 
     // 查询已查询的分片
     try {
-      const uploadedChunks = await this.getUploadedChunkNumber();
-      this.uploadedChunkNumber = uploadedChunks;
+      this.uploadedChunkNumber = await this.getUploadedChunkNumber();
     } catch (err) {
       eventRegistry.emit(EventTypeEnum.ERROR, err, this);
       return;
@@ -171,7 +170,7 @@ export class UploadTask {
    * 加入任务队列
    */
   private pushTaskQueue(): void {
-    const { eventRegistry, taskQueue, simultaneousUploads, chunkFlag } = this.options;
+    const {eventRegistry, taskQueue, simultaneousUploads, chunkFlag} = this.options;
 
     this.status = fileStatus.WAITING;
     eventRegistry.emit(EventTypeEnum.PROGRESS, this);
@@ -207,14 +206,13 @@ export class UploadTask {
    * 生成分片任务
    */
   private generateChunkTask(): ChunkTasks {
-    const { eventRegistry, getParams } = this.options;
+    const {eventRegistry, getParams} = this.options;
 
     const tasks: Omit<SubTask, 'id'>[] = [];
 
     let totalUploaded = 0;
     let lastUpdateTime = Date.now();
     let lastUploaded = 0;
-    let speed = 0;
     let speeds: number[] = [];
 
     for (const chunk of this.chunks) {
@@ -230,11 +228,7 @@ export class UploadTask {
 
       chunk.status = 'pending';
 
-      const myTask: TaskFn = async (signal?: AbortSignal) => {
-        signal?.addEventListener('abort', () => {
-          throw Error('Aborted during execution');
-        });
-
+      const myTask: TaskFn = async () => {
         const params = getParams?.(chunk.file);
 
         const fd = new FormData();
@@ -255,46 +249,52 @@ export class UploadTask {
 
         const onUploadProgress = (progressEvent: ProgressEvent) => {
           if (progressEvent.lengthComputable) {
-            // 当前分片已上传的字节数
-            const chunkUploaded = progressEvent.loaded;
-            // 当前分片总字节数
-            const chunkTotal = progressEvent.total;
+            const now = Date.now();
+            const timeDiff = (now - lastUpdateTime) / 1000; // 转换为秒
 
+            // 当前分片已上传量
+            const chunkUploaded = progressEvent.loaded;
+
+            // 文件总上传量 = 已完成的各分片大小 + 当前分片已上传量
             const currentTotalUploaded = totalUploaded + chunkUploaded;
             const totalSize = this.file.size;
+
+            // 上传百分比
             const percentage = Number((currentTotalUploaded / totalSize).toFixed(6));
 
-            const now = Date.now();
-            const timeDiff = (now - lastUpdateTime) / 1000;
-            const uploadedDiff = chunkTotal - lastUploaded;
-
             if (timeDiff > 0) {
-              speed = uploadedDiff / timeDiff;
-              if (speeds.length >= 5) {
-                speeds.shift();
-              }
-              speeds.push(speed);
-              const averageSpeed = speeds.reduce((a, b) => a + b, 0) / Math.min(5, speeds.length);
+              // 计算瞬时速度（字节/秒）
+              const uploadedDiff = currentTotalUploaded - lastUploaded;
+              const instantSpeed = uploadedDiff / timeDiff;
 
+              // 维护速度队列（平滑速度波动）
+              speeds.push(instantSpeed);
+              if (speeds.length > 5) speeds.shift();
+
+              // 计算平均速度
+              const averageSpeed = speeds.reduce((a, b) => a + b, 0) / speeds.length;
+
+              // 计算剩余时间（秒）
               const remainingBytes = totalSize - currentTotalUploaded;
               const timeRemaining = averageSpeed > 0 ? remainingBytes / averageSpeed : 0;
 
               this.progress = {
                 speed: averageSpeed,
                 percentage,
-                uploadedSize: totalUploaded,
+                uploadedSize: currentTotalUploaded,
                 timeRemaining
               };
 
               eventRegistry.emit(EventTypeEnum.PROGRESS, this);
             }
 
+            // 更新记录值
             lastUpdateTime = now;
-            lastUploaded = chunkUploaded;
+            lastUploaded = currentTotalUploaded;
           }
         };
 
-        const { requestPromise, cancel } = requestWithCancel(
+        const {requestPromise, cancel} = requestWithCancel(
           {
             url: this.options.target,
             method: 'POST',
@@ -316,7 +316,7 @@ export class UploadTask {
         return result;
       };
 
-      tasks.push({ fn: myTask });
+      tasks.push({fn: myTask});
     }
 
     return tasks;
@@ -326,10 +326,8 @@ export class UploadTask {
    * 查询已上传的分片编号
    */
   private async getUploadedChunkNumber(): Promise<number[]> {
-    const { chunkFlag } = this.options;
+    const {chunkFlag} = this.options;
     if (!chunkFlag) {
-      console.log('xxx');
-
       return [];
     }
 
@@ -345,15 +343,14 @@ export class UploadTask {
       }
     });
 
-    const uploadedChunks = result.data.uploadedChunks;
-    return uploadedChunks;
+    return result.data?.uploadedChunks || [];
   }
 
   /**
    * 生成分片记录
    */
   private generateChunks(): void {
-    const { chunkSize, chunkFlag } = this.options;
+    const {chunkSize, chunkFlag} = this.options;
 
     this.chunks = [];
     const _file = this.file;
