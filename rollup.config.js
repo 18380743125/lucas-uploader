@@ -7,23 +7,23 @@ export default defineConfig([
   {
     input: 'src/index.ts',
     output: [
-      {
-        file: 'dist/index.js',
-        format: 'iife',
-        name: 'Lucas',
-        sourcemap: false
-      },
+      // {
+      //   file: 'dist/index.js',
+      //   format: 'iife',
+      //   name: 'Lucas',
+      //   sourcemap: false
+      // },
       {
         file: 'dist/index.mjs',
         format: 'esm',
         sourcemap: false
       },
-      {
-        file: 'dist/index.cjs',
-        format: 'cjs',
-        exports: 'auto',
-        sourcemap: false
-      }
+      // {
+      //   file: 'dist/index.cjs',
+      //   format: 'cjs',
+      //   exports: 'auto',
+      //   sourcemap: false
+      // }
     ],
     plugins: [
       // ts 支持
