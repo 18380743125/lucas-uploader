@@ -1,5 +1,4 @@
 import { EventRegistry } from '../utils/event-registry';
-import { MD5 } from '../utils/md5';
 import { TaskQueue } from '../utils/task-queue';
 import { UploadTask } from './task';
 
@@ -22,6 +21,8 @@ export interface UploaderOptions {
   chunkFlag?: boolean;
   // 分片大小
   chunkSize?: number;
+  // 单一文件的分片上传并发限制
+  chunkSimultaneousUploads: number;
   // 文件上传额外参数
   getParams?: (file: File | Blob) => Record<string, any>;
 }
@@ -54,7 +55,8 @@ const defaultConfig: UploaderOptions = {
   withCredentials: false,
   simultaneousUploads: 3,
   chunkFlag: true,
-  chunkSize: 512 * 1024
+  chunkSize: 512 * 1024,
+  chunkSimultaneousUploads: 5
 };
 
 export class LucasUploader {
@@ -75,7 +77,7 @@ export class LucasUploader {
 
     // 监听上传任务完成
     this.eventRegistry.on(EventTypeEnum.TASK_SUCCESS, (_result, task: UploadTask) => {
-      this.removeTask(task);
+      this.removeTask(task, EventTypeEnum.TASK_SUCCESS);
     });
 
     // 监听文件合并事件
@@ -97,10 +99,10 @@ export class LucasUploader {
     this.eventRegistry.off(eventName, eventFn);
   }
 
-  public removeTask(task: UploadTask) {
+  public removeTask(task: UploadTask, type?: EventTypeEnum) {
     task && this.taskList.splice(this.taskList.indexOf(task), 1);
     // 所有任务完成
-    if (this.taskList.length === 0) {
+    if (type === EventTypeEnum.SUCCESS && this.taskList.length === 0) {
       this.eventRegistry.emit(EventTypeEnum.COMPLETE, this);
     }
   }

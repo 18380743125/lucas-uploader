@@ -1,7 +1,7 @@
 import { EventTypeEnum, UploaderOptions } from '.';
 import { EventRegistry } from '../utils/event-registry';
 import { request, requestWithCancel } from '../utils/request';
-import { SubTask, TaskFn, TaskQueue } from '../utils/task-queue';
+import { SubTask, TaskQueue } from '../utils/task-queue';
 import { Chunk } from './chunk';
 
 type TaskOptions = UploaderOptions & { taskQueue: TaskQueue; eventRegistry: EventRegistry };
@@ -88,6 +88,10 @@ export class UploadTask {
     this.identifier = identifier;
   }
 
+  get taskId() {
+    return `${this.identifier}__${this.file.name}`;
+  }
+
   /**
    * 启动任务
    */
@@ -104,18 +108,12 @@ export class UploadTask {
    * 暂停任务
    */
   public pause() {
-    const { taskQueue } = this.options;
+    const { taskQueue, eventRegistry } = this.options;
 
     if (this.status === fileStatus.UPLOADING) {
-      const task = taskQueue.cancelTask(this.identifier);
+      taskQueue.cancelTask(this.taskId);
       this.status = fileStatus.PAUSE;
-
-      if (task) {
-        // 取消请求
-        task.subTasks.forEach(subTask => {
-          subTask.fn.cancel?.();
-        });
-      }
+      eventRegistry.emit(EventTypeEnum.PROGRESS, this);
     }
   }
 
@@ -124,9 +122,7 @@ export class UploadTask {
    */
   public resume() {
     if (this.status === fileStatus.PAUSE) {
-      setTimeout(() => {
-        this.pushTaskQueue();
-      }, 0);
+      this.pushTaskQueue();
     }
   }
 
@@ -134,9 +130,9 @@ export class UploadTask {
    * 重试
    */
   public retry() {
-    setTimeout(() => {
+    if (this.status === fileStatus.FAIL) {
       this.pushTaskQueue();
-    }, 0);
+    }
   }
 
   /**
@@ -145,16 +141,7 @@ export class UploadTask {
   public abort() {
     const { taskQueue, eventRegistry } = this.options;
 
-    const task = taskQueue.cancelTask(this.identifier);
-
-    if (task) {
-      // 取消请求
-      task.subTasks.forEach(subTask => {
-        subTask.fn.cancel?.();
-      });
-
-      task.status = 'failed';
-    }
+    taskQueue.cancelTask(this.taskId);
 
     eventRegistry.emit(EventTypeEnum.TASK_CANCEL, this);
   }
@@ -187,7 +174,7 @@ export class UploadTask {
    * 加入任务队列
    */
   private pushTaskQueue(): void {
-    const { eventRegistry, taskQueue, simultaneousUploads, chunkFlag } = this.options;
+    const { eventRegistry, taskQueue, chunkSimultaneousUploads, chunkFlag } = this.options;
 
     // 触发文件合并事件
     if (chunkFlag && this.chunks.length === this.uploadedChunkNumber.length) {
@@ -204,7 +191,7 @@ export class UploadTask {
       eventRegistry.emit(EventTypeEnum.PROGRESS, this);
     };
 
-    const promise = taskQueue.enqueue(this.identifier, simultaneousUploads, chunkTasks, mainTaskFn);
+    const promise = taskQueue.enqueue(this.taskId, chunkSimultaneousUploads, chunkTasks, mainTaskFn);
 
     promise
       .then(res => {
@@ -243,7 +230,7 @@ export class UploadTask {
 
       chunk.status = 'pending';
 
-      const myTask: TaskFn = async () => {
+      const myTask: SubTask['fn'] = async () => {
         const params = getParams?.(chunk.file);
 
         const fd = new FormData();

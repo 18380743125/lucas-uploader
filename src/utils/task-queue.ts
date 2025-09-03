@@ -1,34 +1,46 @@
-type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
+type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'canceled';
 
-export type TaskFn<T = any> = {
-  (signal?: AbortSignal): Promise<T>;
+export type SubTaskFn<T = any> = {
+  (): Promise<T>;
+
   cancel?: () => void;
 };
 
 export interface SubTask<T = any> {
   id: string;
-  fn: TaskFn<T>;
+
+  fn: SubTaskFn<T>;
 }
 
 export interface TaskRecord<T = any> {
   id: string; // 主任务 ID
+
   mainTaskFn?: () => Promise<void>; // 主任务前置逻辑
+
   subTasks: SubTask[]; // 子任务列表
+
   subConcurrent: number; // 子任务并发数
-  status: TaskStatus; // 任务状态
+
+  status: TaskStatus; // 主任务状态
+
   controller: AbortController;
+
   resolve: (value: T) => void;
+
   reject: (reason?: any) => void;
 }
 
 /**
- * 主任务 + 子任务的双层并发队列
+ * 任务调度器：主任务与子任务的双层并发
  */
 export class TaskQueue {
   private readonly maxConcurrent: number; // 主任务最大并发数
+
   private running: number; // 当前运行的主任务数
+
   private queue: TaskRecord[]; // 主任务等待队列
-  private taskMap: Map<string, TaskRecord>; // 主任务状态
+
+  private taskMap: Map<string, TaskRecord>; // id - 主任务映射
 
   constructor(maxConcurrent = 3) {
     this.maxConcurrent = maxConcurrent;
@@ -54,8 +66,7 @@ export class TaskQueue {
       throw new Error(`Task ${id} already exists`);
     }
 
-    const controller = new AbortController();
-    const subTaskInstances: SubTask[] = subTasks.map((sub, index) => ({
+    const subTaskList: SubTask[] = subTasks.map((sub, index) => ({
       id: `${id}_sub${index + 1}`,
       fn: sub.fn
     }));
@@ -71,37 +82,43 @@ export class TaskQueue {
     const taskRecord: TaskRecord = {
       id,
       mainTaskFn,
-      subTasks: subTaskInstances,
+      subTasks: subTaskList,
       subConcurrent,
       status: 'pending',
-      controller,
+      controller: new AbortController(),
       resolve,
       reject
     };
 
     this.queue.push(taskRecord);
     this.taskMap.set(id, taskRecord);
+
     this.dequeue();
 
     return promise;
   }
 
   /**
-   * 取消任务 包括取消子任务
+   * 取消任务
    */
   public cancelTask(id: string) {
     const task = this.taskMap.get(id);
     if (!task) return;
 
+    task.subTasks.forEach(subtask => {
+      subtask.fn.cancel?.();
+    });
+
     task.controller.abort();
-    task.status = 'failed';
-    task.reject('canceled');
+    task.status = 'canceled';
     this.taskMap.delete(id);
+
+    task.reject('canceled');
 
     // 从队列中移除
     this.queue = this.queue.filter(item => item.id !== id);
 
-    return task
+    return task;
   }
 
   /**
@@ -122,19 +139,21 @@ export class TaskQueue {
     task.status = 'running';
 
     try {
-      // 执行主任务前置逻辑
+      // 主任务前置逻辑
       if (task.mainTaskFn) await task.mainTaskFn();
 
       // 执行子任务队列
       const results = await this.runSubtasks(task);
-      task.resolve(results);
+
       task.status = 'completed';
+      task.resolve(results);
     } catch (err) {
       task.status = 'failed';
       task.reject(err);
     } finally {
       this.running--;
       this.taskMap.delete(task.id);
+
       // 执行下一个主任务
       this.dequeue();
     }
@@ -151,8 +170,8 @@ export class TaskQueue {
     let hasError = false;
 
     while (index < subTasks.length || activeCount > 0) {
-      // 1.填充并发槽
-      while (activeCount < subConcurrent && index < subTasks.length && !hasError) {
+      // 1、填充并发槽
+      while (index < subTasks.length && activeCount < subConcurrent && !hasError) {
         if (controller.signal.aborted) {
           hasError = true;
           break;
@@ -163,31 +182,31 @@ export class TaskQueue {
 
         // 异步执行子任务
         subtask
-          .fn(controller.signal)
+          .fn()
           .then(result => {
             results.push(result);
           })
           .catch(err => {
             hasError = true;
-            // 终止所有子任务
+            subtask.fn.cancel?.();
             controller.abort();
             throw new Error(`Subtask ${subtask.id} failed: ${err}`);
           })
           .finally(() => {
-            activeCount--; // 任务完成，释放并发槽
+            activeCount--;
           });
       }
 
-      // 2.短时间让出控制权（避免空转）
+      // 2、短时间让出控制权（避免空转）
       if (activeCount > 0 && !hasError) {
         await new Promise(resolve => setTimeout(resolve, 10));
       }
 
-      // 3.错误或终止检测
+      // 3、错误或终止检测
       if (hasError || controller.signal.aborted) {
         throw new Error('Subtask execution aborted');
       }
     }
-    return results; // 返回所有子任务结果
+    return results;
   }
 }
