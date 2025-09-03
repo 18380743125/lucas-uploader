@@ -27,7 +27,7 @@ export interface UploaderOptions {
 }
 
 // 文件上传事件
-export type EventType = 'added' | 'progress' | 'success' | 'complete' | 'error' | 'merge';
+export type EventType = 'added' | 'progress' | 'success' | 'merge' | 'complete' | 'error' | 'warning';
 
 export enum EventTypeEnum {
   ADDED = 'added',
@@ -37,7 +37,12 @@ export enum EventTypeEnum {
   COMPLETE = 'complete',
   ERROR = 'error',
   TASK_SUCCESS = 'task-success',
-  TASK_CANCEL = 'task-cancel'
+  TASK_CANCEL = 'task-cancel',
+  WARNING = 'warning'
+}
+
+export enum WarningNameEnum {
+  FILE_EXISTING = 'file-existing'
 }
 
 const defaultConfig: UploaderOptions = {
@@ -65,19 +70,22 @@ export class LucasUploader {
     this.options = { ...defaultConfig, ...options };
     const { simultaneousUploads } = this.options;
     this.uploadTaskQueue = new TaskQueue(simultaneousUploads);
+
     this.eventRegistry = new EventRegistry();
 
-    // 监听任务是否完成
+    // 监听上传任务完成
     this.eventRegistry.on(EventTypeEnum.TASK_SUCCESS, (_result, task: UploadTask) => {
-      task && this.taskList.splice(this.taskList.indexOf(task), 1);
-      if (this.taskList.length === 0) {
-        this.eventRegistry.emit(EventTypeEnum.COMPLETE, this);
-      }
+      this.removeTask(task);
     });
 
-    // 监听任务取消
+    // 监听文件合并事件
+    this.eventRegistry.on(EventTypeEnum.MERGE, (task: UploadTask) => {
+      this.removeTask(task);
+    });
+
+    // 监听上传任务取消
     this.eventRegistry.on(EventTypeEnum.TASK_CANCEL, (task: UploadTask) => {
-      this.taskList.splice(this.taskList.indexOf(task), 1);
+      this.removeTask(task);
     });
   }
 
@@ -87,6 +95,14 @@ export class LucasUploader {
 
   public off(eventName: EventType, eventFn: (...args: any[]) => unknown) {
     this.eventRegistry.off(eventName, eventFn);
+  }
+
+  public removeTask(task: UploadTask) {
+    task && this.taskList.splice(this.taskList.indexOf(task), 1);
+    // 所有任务完成
+    if (this.taskList.length === 0) {
+      this.eventRegistry.emit(EventTypeEnum.COMPLETE, this);
+    }
   }
 
   /**
@@ -108,10 +124,13 @@ export class LucasUploader {
       `;
       DOM.appendChild(input);
       DOM.addEventListener('click', function () {
+        input.value = '';
         input.click();
       });
     }
-    if (!this.options.singleFile) {
+    if (this.options.singleFile === true) {
+      input.removeAttribute('multiple');
+    } else {
       input.setAttribute('multiple', 'multiple');
     }
     input.addEventListener('change', e => {
@@ -120,6 +139,7 @@ export class LucasUploader {
         const files = Array.from(target.files);
         this.createTask(files, e);
       }
+      target.value = '';
     });
   }
 
@@ -156,22 +176,26 @@ export class LucasUploader {
    */
   private async createTask(files: File[], e: Event) {
     const currentTasks: UploadTask[] = [];
+    const existTaskList: UploadTask[] = [];
     for (const file of files) {
-      const identifier = await MD5(file);
-      const findTask = this.taskList.find(task => task.identifier === identifier);
+      const findTask = this.taskList.find(task => task.file.name === file.name);
       if (!findTask) {
-        const task = new UploadTask(identifier, file, {
+        const task = new UploadTask(file, {
           ...this.options,
           taskQueue: this.uploadTaskQueue,
           eventRegistry: this.eventRegistry
         });
         currentTasks.push(task);
         this.taskList.push(task);
+      } else {
+        existTaskList.push(findTask);
       }
     }
     if (currentTasks.length) {
       this.eventRegistry.emit(EventTypeEnum.ADDED, currentTasks, this.taskList, e);
-      currentTasks.forEach(task => task.bootstrap());
+    }
+    if (existTaskList.length) {
+      this.eventRegistry.emit(EventTypeEnum.WARNING, WarningNameEnum.FILE_EXISTING, existTaskList);
     }
   }
 }

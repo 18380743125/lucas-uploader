@@ -1,7 +1,7 @@
 import { EventTypeEnum, UploaderOptions } from '.';
 import { EventRegistry } from '../utils/event-registry';
-import { SubTask, TaskFn, TaskQueue } from '../utils/task-queue';
 import { request, requestWithCancel } from '../utils/request';
+import { SubTask, TaskFn, TaskQueue } from '../utils/task-queue';
 import { Chunk } from './chunk';
 
 type TaskOptions = UploaderOptions & { taskQueue: TaskQueue; eventRegistry: EventRegistry };
@@ -60,7 +60,7 @@ export interface TaskProgress {
 }
 
 export class UploadTask {
-  public identifier: string;
+  public identifier!: string;
 
   public file: File;
 
@@ -79,10 +79,13 @@ export class UploadTask {
     timeRemaining: 0
   };
 
-  constructor(identifier: string, file: File, options: TaskOptions) {
-    this.identifier = identifier;
+  constructor(file: File, options: TaskOptions) {
     this.file = file;
     this.options = options;
+  }
+
+  public setIdentifier(identifier: string) {
+    this.identifier = identifier;
   }
 
   /**
@@ -91,7 +94,7 @@ export class UploadTask {
   public bootstrap() {
     const { eventRegistry } = this.options;
 
-    this.status = fileStatus.PARSING;
+    this.status = fileStatus.WAITING;
     eventRegistry.emit(EventTypeEnum.PROGRESS, this);
 
     this.chunkTask();
@@ -109,9 +112,9 @@ export class UploadTask {
 
       if (task) {
         // 取消请求
-        // task.subTasks.forEach(subTask => {
-        //   subTask.fn.cancel?.();
-        // });
+        task.subTasks.forEach(subTask => {
+          subTask.fn.cancel?.();
+        });
       }
     }
   }
@@ -186,16 +189,14 @@ export class UploadTask {
   private pushTaskQueue(): void {
     const { eventRegistry, taskQueue, simultaneousUploads, chunkFlag } = this.options;
 
-    this.status = fileStatus.WAITING;
-    eventRegistry.emit(EventTypeEnum.PROGRESS, this);
-
-    if (this.chunks.length === this.uploadedChunkNumber.length && chunkFlag) {
+    // 触发文件合并事件
+    if (chunkFlag && this.chunks.length === this.uploadedChunkNumber.length) {
       eventRegistry.emit(EventTypeEnum.MERGE, this);
       return;
     }
 
     // 生成分片任务
-    const tasks = this.generateChunkTask();
+    const chunkTasks = this.generateChunkTask();
 
     // 主任务前置逻辑
     const mainTaskFn = async () => {
@@ -203,7 +204,7 @@ export class UploadTask {
       eventRegistry.emit(EventTypeEnum.PROGRESS, this);
     };
 
-    const promise = taskQueue.enqueue(this.identifier, simultaneousUploads, tasks, mainTaskFn);
+    const promise = taskQueue.enqueue(this.identifier, simultaneousUploads, chunkTasks, mainTaskFn);
 
     promise
       .then(res => {
@@ -237,9 +238,6 @@ export class UploadTask {
       if (this.uploadedChunkNumber.includes(chunk.chunkNumber)) {
         chunk.status = 'success';
         totalUploaded += chunk.currentChunkSize;
-      }
-
-      if (chunk.status === 'success') {
         continue;
       }
 
@@ -327,8 +325,8 @@ export class UploadTask {
           const result = await requestPromise;
 
           totalUploaded += chunk.currentChunkSize;
-          chunk.status = 'success';
 
+          chunk.status = 'success';
           eventRegistry.emit(EventTypeEnum.SUCCESS, result, this);
 
           return result;
