@@ -5,24 +5,34 @@ import { UploadTask } from './task';
 export interface UploaderOptions {
   // 上传目标地址
   target: string;
+
   // 上传文件参数名
   fileParameterName?: string;
+
   // 是否单文件上传
   singleFile?: boolean;
+
   // 上传方式
   method?: 'multipart';
+
   // 请求头
   headers?: Record<string, string>;
+
   // 是否携带 Cookie
   withCredentials?: boolean;
+
   // 同时上传文件数量
   simultaneousUploads: number;
+
   // 分片上传
   chunkFlag?: boolean;
+
   // 分片大小
   chunkSize?: number;
+
   // 单一文件的分片上传并发限制
   chunkSimultaneousUploads: number;
+
   // 文件上传额外参数
   getParams?: (file: File | Blob) => Record<string, any>;
 }
@@ -32,17 +42,25 @@ export type EventType = 'added' | 'progress' | 'success' | 'merge' | 'complete' 
 
 export enum EventTypeEnum {
   ADDED = 'added',
+
   PROGRESS = 'progress',
+
   SUCCESS = 'success',
-  MERGE = 'merge',
-  COMPLETE = 'complete',
+
   ERROR = 'error',
+
+  MERGE = 'merge',
+
   TASK_SUCCESS = 'task-success',
+
   TASK_CANCEL = 'task-cancel',
+
+  COMPLETE = 'complete',
+
   WARNING = 'warning'
 }
 
-export enum WarningNameEnum {
+export enum UploadWarningEnum {
   FILE_EXISTING = 'file-existing'
 }
 
@@ -70,7 +88,9 @@ export class LucasUploader {
 
   constructor(options: UploaderOptions = defaultConfig) {
     this.options = { ...defaultConfig, ...options };
+
     const { simultaneousUploads } = this.options;
+
     this.uploadTaskQueue = new TaskQueue(simultaneousUploads);
 
     this.eventRegistry = new EventRegistry();
@@ -97,14 +117,6 @@ export class LucasUploader {
 
   public off(eventName: EventType, eventFn: (...args: any[]) => unknown) {
     this.eventRegistry.off(eventName, eventFn);
-  }
-
-  public removeTask(task: UploadTask, type?: EventTypeEnum) {
-    task && this.taskList.splice(this.taskList.indexOf(task), 1);
-    // 所有任务完成
-    if (type === EventTypeEnum.SUCCESS && this.taskList.length === 0) {
-      this.eventRegistry.emit(EventTypeEnum.COMPLETE, this);
-    }
   }
 
   /**
@@ -179,6 +191,7 @@ export class LucasUploader {
   private async createTask(files: File[], e: Event) {
     const currentTasks: UploadTask[] = [];
     const existTaskList: UploadTask[] = [];
+
     for (const file of files) {
       const findTask = this.taskList.find(task => task.file.name === file.name);
       if (!findTask) {
@@ -187,17 +200,29 @@ export class LucasUploader {
           taskQueue: this.uploadTaskQueue,
           eventRegistry: this.eventRegistry
         });
+
         currentTasks.push(task);
         this.taskList.push(task);
       } else {
         existTaskList.push(findTask);
       }
     }
+
     if (currentTasks.length) {
       this.eventRegistry.emit(EventTypeEnum.ADDED, currentTasks, this.taskList, e);
     }
+
     if (existTaskList.length) {
-      this.eventRegistry.emit(EventTypeEnum.WARNING, WarningNameEnum.FILE_EXISTING, existTaskList);
+      this.eventRegistry.emit(EventTypeEnum.WARNING, UploadWarningEnum.FILE_EXISTING, existTaskList);
+    }
+  }
+
+  private removeTask(task: UploadTask, type?: EventTypeEnum) {
+    task && this.taskList.splice(this.taskList.indexOf(task), 1);
+
+    // 所有任务完成
+    if (type === EventTypeEnum.SUCCESS && this.taskList.length === 0) {
+      this.eventRegistry.emit(EventTypeEnum.COMPLETE, this);
     }
   }
 }

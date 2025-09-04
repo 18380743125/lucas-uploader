@@ -1,25 +1,15 @@
-export interface RequestConfig {
-  url: string;
-  method?: 'GET' | 'POST';
-  headers?: Record<string, string>;
-  params?: Record<string, string | number | boolean>;
-  data?: any;
-  timeout?: number;
-}
-
-export interface CancelToken {
-  promise: Promise<any>;
-}
-
-export interface CancelTokenSource {
-  token: CancelToken;
+interface CancelTokenSource {
+  token: {
+    promise: Promise<any>;
+  };
 
   cancel(message?: string): void;
 }
 
-export function createCancelTokenSource(): CancelTokenSource {
-  let cancelFn: (message?: string) => void;
+function _createCancelTokenSource(): CancelTokenSource {
   let canceled = false;
+
+  let cancelFn: (message?: string) => void;
 
   const promise = new Promise(resolve => {
     cancelFn = (message?: string) => {
@@ -40,9 +30,21 @@ export function createCancelTokenSource(): CancelTokenSource {
   };
 }
 
-export function request(
+export interface RequestConfig {
+  url: string;
+  method?: 'GET' | 'POST';
+  headers?: Record<string, string>;
+  params?: Record<string, string | number | boolean>;
+  data?: any;
+  timeout?: number;
+}
+
+/**
+ * ajax 请求
+ */
+function _request(
   config: RequestConfig,
-  onUploadProgress?: (progressEvent: ProgressEvent) => void,
+  onUploadProgress?: (event: ProgressEvent) => void,
   onXHRCreated?: (xhr: XMLHttpRequest) => void
 ) {
   return new Promise((resolve, reject) => {
@@ -59,15 +61,14 @@ export function request(
 
     const xhr = new XMLHttpRequest();
 
+    let isCompleted = false;
+    xhr.timeout = timeout;
+
     if (onXHRCreated) {
       onXHRCreated(xhr);
     }
 
-    let isCompleted = false;
-
-    xhr.timeout = timeout;
-
-    if (onUploadProgress && method.toUpperCase() !== 'GET' && data instanceof FormData) {
+    if (onUploadProgress && method.toUpperCase() === 'POST' && data instanceof FormData) {
       xhr.upload.addEventListener('progress', onUploadProgress);
     }
 
@@ -77,8 +78,8 @@ export function request(
 
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const responseData = JSON.parse(xhr.responseText);
-          resolve(responseData);
+          const result = JSON.parse(xhr.responseText);
+          resolve(result);
         } catch (error) {
           reject(new Error('Failed to parse response JSON'));
         }
@@ -90,20 +91,22 @@ export function request(
     xhr.onerror = () => {
       if (isCompleted) return;
       isCompleted = true;
+
       reject(new Error('Network error'));
     };
 
     xhr.ontimeout = () => {
       if (isCompleted) return;
       isCompleted = true;
+
       reject(new Error('Request timeout'));
     };
-
-    xhr.open(method, requestUrl);
 
     Object.entries(headers).forEach(([key, value]) => {
       xhr.setRequestHeader(key, value);
     });
+
+    xhr.open(method, requestUrl);
 
     if (data && method.toUpperCase() !== 'GET') {
       if (data instanceof FormData) {
@@ -118,27 +121,35 @@ export function request(
   });
 }
 
-export function requestWithCancel(config: RequestConfig, onUploadProgress?: (progressEvent: ProgressEvent) => void) {
-  const source = createCancelTokenSource();
+interface CancelablePromise<T> extends Promise<T> {
+  cancel: (message?: string) => void;
+}
+
+export function request(
+  config: RequestConfig,
+  onUploadProgress?: (event: ProgressEvent) => void
+): CancelablePromise<unknown> {
+  const source = _createCancelTokenSource();
   let xhr: XMLHttpRequest | null = null;
 
+  const fillXhr = (instance: XMLHttpRequest) => {
+    xhr = instance;
+  };
+
   const requestPromise = new Promise((resolve, reject) => {
-    request(config, onUploadProgress, createdXhr => (xhr = createdXhr))
-      .then(resolve)
-      .catch(reject);
+    _request(config, onUploadProgress, fillXhr).then(resolve).catch(reject);
 
     source.token.promise.then((message?: string) => {
       if (xhr) {
         xhr.abort();
       }
-      reject(new Error(`Request canceled: ${message || null}`));
+      reject(new Error(message || 'Request canceled'));
     });
-  });
+  }) as CancelablePromise<unknown>;
 
-  return {
-    requestPromise,
-    cancel: (message?: string) => {
-      source.cancel(message);
-    }
+  requestPromise.cancel = (message?: string) => {
+    source.cancel(message);
   };
+
+  return requestPromise;
 }

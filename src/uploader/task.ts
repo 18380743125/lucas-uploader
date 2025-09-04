@@ -1,6 +1,6 @@
-import { EventTypeEnum, UploaderOptions } from '.';
-import { EventRegistry } from '../utils/event-registry';
-import { request, requestWithCancel } from '../utils/request';
+import { EventTypeEnum, type UploaderOptions } from '.';
+import { type EventRegistry } from '../utils/event-registry';
+import { request } from '../utils/request';
 import { SubTask, TaskQueue } from '../utils/task-queue';
 import { Chunk } from './chunk';
 
@@ -10,15 +10,21 @@ type ChunkTasks = Omit<SubTask<any>, 'id'>[];
 
 type StatusItem = {
   code: number;
+
   text: string;
 };
 
 type FileStatus = {
   PARSING: StatusItem;
+
   WAITING: StatusItem;
+
   UPLOADING: StatusItem;
+
   PAUSE: StatusItem;
+
   SUCCESS: StatusItem;
+
   FAIL: StatusItem;
 };
 
@@ -60,24 +66,34 @@ export interface TaskProgress {
 }
 
 export class UploadTask {
+  // 文件唯一标识
   public identifier!: string;
 
+  // 文件
   public file: File;
 
+  // 分片列表
   public chunks: Chunk[] = [];
 
+  // 已上传分片
   public uploadedChunkNumber: number[] = [];
 
+  // 任务状态
   public status: StatusItem = fileStatus.PARSING;
 
-  public options: TaskOptions;
-
+  // 进度信息
   public progress: TaskProgress = {
     speed: 0,
     percentage: 0,
     uploadedSize: 0,
     timeRemaining: 0
   };
+
+  // 选项
+  private options: TaskOptions;
+
+  // 上次进度条更新时间
+  private lastUpdateTime = Date.now();
 
   constructor(file: File, options: TaskOptions) {
     this.file = file;
@@ -89,7 +105,7 @@ export class UploadTask {
   }
 
   get taskId() {
-    return `${this.identifier}__${this.file.name}`;
+    return `${this.identifier}__,__${this.file.name}`;
   }
 
   /**
@@ -152,14 +168,11 @@ export class UploadTask {
   private async chunkTask() {
     const { eventRegistry } = this.options;
 
-    // 查询已查询的分片
+    // 查询已上传的分片
     try {
       this.uploadedChunkNumber = await this.getUploadedChunkNumber();
     } catch (err) {
-      if (err === 'canceled') {
-      } else {
-        eventRegistry.emit(EventTypeEnum.ERROR, err, this);
-      }
+      eventRegistry.emit(EventTypeEnum.ERROR, err, this);
       return;
     }
 
@@ -186,22 +199,21 @@ export class UploadTask {
     const chunkTasks = this.generateChunkTask();
 
     // 主任务前置逻辑
-    const mainTaskFn = async () => {
+    const mainTaskPreFn = async () => {
       this.status = fileStatus.UPLOADING;
       eventRegistry.emit(EventTypeEnum.PROGRESS, this);
+      this.lastUpdateTime = Date.now();
     };
 
-    const promise = taskQueue.enqueue(this.taskId, chunkSimultaneousUploads, chunkTasks, mainTaskFn);
+    const promise = taskQueue.enqueue(this.taskId, chunkSimultaneousUploads, chunkTasks, mainTaskPreFn);
 
     promise
-      .then(res => {
+      .then(result => {
         this.status = fileStatus.SUCCESS;
-        eventRegistry.emit(EventTypeEnum.TASK_SUCCESS, res, this);
+        eventRegistry.emit(EventTypeEnum.PROGRESS, this);
+        eventRegistry.emit(EventTypeEnum.TASK_SUCCESS, result, this);
       })
       .catch(err => {
-        if (err === 'canceled') {
-          return;
-        }
         this.status = fileStatus.FAIL;
         eventRegistry.emit(EventTypeEnum.ERROR, err, this);
       });
@@ -211,17 +223,16 @@ export class UploadTask {
    * 生成分片任务
    */
   private generateChunkTask(): ChunkTasks {
-    const { eventRegistry, getParams } = this.options;
+    const { eventRegistry, getParams, chunkFlag } = this.options;
 
     const tasks: Omit<SubTask, 'id'>[] = [];
 
     let totalUploaded = 0;
-    let lastUpdateTime = Date.now();
     let lastUploaded = 0;
     let speeds: number[] = [];
 
     for (const chunk of this.chunks) {
-      // 当前分片已上传了（续传）
+      // 续传
       if (this.uploadedChunkNumber.includes(chunk.chunkNumber)) {
         chunk.status = 'success';
         totalUploaded += chunk.currentChunkSize;
@@ -234,14 +245,22 @@ export class UploadTask {
         const params = getParams?.(chunk.file);
 
         const fd = new FormData();
-        fd.set('chunkNumber', chunk.chunkNumber.toString());
-        fd.set('chunkSize', chunk.chunkSize.toString());
-        fd.set('currentChunkSize', chunk.currentChunkSize.toString());
-        fd.set('totalChunks', chunk.totalChunks.toString());
-        fd.set('totalSize', chunk.file.size.toString());
-        fd.set('identifier', chunk.identifier);
-        fd.set('filename', chunk.filename);
-        fd.set('file', chunk.file);
+
+        if (chunkFlag) {
+          fd.set('chunkNumber', chunk.chunkNumber.toString());
+          fd.set('chunkSize', chunk.chunkSize.toString());
+          fd.set('currentChunkSize', chunk.currentChunkSize.toString());
+          fd.set('totalChunks', chunk.totalChunks.toString());
+          fd.set('identifier', chunk.identifier);
+          fd.set('filename', chunk.filename);
+          fd.set('file', chunk.file);
+          fd.set('totalSize', this.file.size.toString());
+        } else {
+          fd.set('filename', this.file.name);
+          fd.set('identifier', this.identifier);
+          fd.set('totalSize', this.file.size.toString());
+          fd.set('file', this.file);
+        }
 
         if (params && Object.keys(params).length) {
           for (const [key, value] of Object.entries(params)) {
@@ -249,13 +268,13 @@ export class UploadTask {
           }
         }
 
-        const onUploadProgress = (progressEvent: ProgressEvent) => {
-          if (progressEvent.lengthComputable) {
+        const onUploadProgress = (event: ProgressEvent) => {
+          if (event.lengthComputable) {
             const now = Date.now();
-            const timeDiff = (now - lastUpdateTime) / 1000; // 转换为秒
+            const timeDiff = (now - this.lastUpdateTime) / 1000; // 转换为秒
 
             // 当前分片已上传量
-            const chunkUploaded = progressEvent.loaded;
+            const chunkUploaded = event.loaded;
 
             // 文件总上传量 = 已完成的各分片大小 + 当前分片已上传量
             const currentTotalUploaded = totalUploaded + chunkUploaded;
@@ -264,7 +283,7 @@ export class UploadTask {
             // 上传百分比
             const percentage = Number((currentTotalUploaded / totalSize).toFixed(6));
 
-            if (timeDiff > 0) {
+            if (timeDiff > 0 && lastUploaded > 0) {
               // 计算瞬时速度（字节/秒）
               const uploadedDiff = currentTotalUploaded - lastUploaded;
               const instantSpeed = uploadedDiff / timeDiff;
@@ -291,12 +310,12 @@ export class UploadTask {
             }
 
             // 更新记录值
-            lastUpdateTime = now;
+            this.lastUpdateTime = now;
             lastUploaded = currentTotalUploaded;
           }
         };
 
-        const { requestPromise, cancel } = requestWithCancel(
+        const requestPromise = request(
           {
             url: this.options.target,
             method: 'POST',
@@ -306,7 +325,7 @@ export class UploadTask {
           onUploadProgress
         );
 
-        myTask.cancel = cancel;
+        myTask.cancel = requestPromise.cancel;
 
         try {
           const result = await requestPromise;
@@ -342,8 +361,8 @@ export class UploadTask {
       method: 'GET',
       headers: this.options.headers,
       params: {
-        ...params,
-        identifier: this.identifier
+        identifier: this.identifier,
+        ...params
       }
     });
 

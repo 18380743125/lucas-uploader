@@ -1,3 +1,6 @@
+/**
+ * 分片对象
+ */
 export class Chunk {
   // 当前分片号
   public chunkNumber: number;

@@ -7,7 +7,7 @@ export class EventRegistry {
     this.eventMap = {};
   }
 
-  on(eventName: string, eventFn: (...args: any[]) => unknown) {
+  on(eventName: string, eventFn: EventFn) {
     let eventFns = this.eventMap[eventName];
     if (!eventFns) {
       eventFns = [];
@@ -16,7 +16,7 @@ export class EventRegistry {
     eventFns.push(eventFn);
   }
 
-  once(eventName: string, eventFn: (...args: any[]) => unknown) {
+  once(eventName: string, eventFn: EventFn) {
     let eventFns = this.eventMap[eventName];
     if (!eventFns) {
       eventFns = [];
@@ -29,7 +29,7 @@ export class EventRegistry {
     eventFns.push(onceEventFn);
   }
 
-  off(eventName: string, eventFn: (...args: any[]) => unknown) {
+  off(eventName: string, eventFn: EventFn) {
     const eventFns = this.eventMap[eventName];
     if (!eventFns) return;
     for (let i = 0; i < eventFns.length; i++) {
@@ -46,7 +46,7 @@ export class EventRegistry {
 
   emit(eventName: string, ...args: any[]) {
     const eventFns = this.eventMap[eventName];
-    if (!eventFns) return;
+    if (!eventFns?.length) return;
     eventFns.forEach(fn => {
       fn(...args);
     });

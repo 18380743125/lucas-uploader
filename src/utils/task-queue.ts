@@ -1,33 +1,33 @@
-type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'canceled';
+type MainTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'canceled';
 
-export type SubTaskFn<T = any> = {
+export type SubTaskFn<T = unknown> = {
   (): Promise<T>;
 
   cancel?: () => void;
 };
 
-export interface SubTask<T = any> {
+export interface SubTask<T = unknown> {
   id: string;
 
   fn: SubTaskFn<T>;
 }
 
-export interface TaskRecord<T = any> {
+export interface MainTaskRecord<T = any> {
   id: string; // 主任务 ID
 
-  mainTaskFn?: () => Promise<void>; // 主任务前置逻辑
+  mainTaskPreFn?: () => Promise<void>; // 主任务前置逻辑
 
   subTasks: SubTask[]; // 子任务列表
 
-  subConcurrent: number; // 子任务并发数
+  subConcurrentSize: number; // 子任务并发数
 
-  status: TaskStatus; // 主任务状态
+  status: MainTaskStatus; // 主任务状态
 
-  controller: AbortController;
+  controller: AbortController; // 主任务控制器
 
   resolve: (value: T) => void;
 
-  reject: (reason?: any) => void;
+  reject: (reason?: unknown) => void;
 }
 
 /**
@@ -38,9 +38,9 @@ export class TaskQueue {
 
   private running: number; // 当前运行的主任务数
 
-  private queue: TaskRecord[]; // 主任务等待队列
+  private queue: MainTaskRecord[]; // 主任务等待队列
 
-  private taskMap: Map<string, TaskRecord>; // id - 主任务映射
+  private taskMap: Map<string, MainTaskRecord>; // id - 主任务映射
 
   constructor(maxConcurrent = 3) {
     this.maxConcurrent = maxConcurrent;
@@ -52,18 +52,18 @@ export class TaskQueue {
   /**
    * 添加主任务
    * @param id 主任务唯一标识
-   * @param subConcurrent 子任务并发数
+   * @param subConcurrentSize 子任务并发数
    * @param subTasks 子任务数组
-   * @param mainTaskFn 主任务前置逻辑
+   * @param mainTaskPreFn 主任务前置逻辑
    */
   public enqueue<T>(
     id: string,
-    subConcurrent: number,
+    subConcurrentSize: number,
     subTasks: Omit<SubTask, 'id'>[],
-    mainTaskFn?: () => Promise<void>
+    mainTaskPreFn?: () => Promise<void>
   ): Promise<T> {
     if (this.taskMap.has(id)) {
-      throw new Error(`Task ${id} already exists`);
+      throw new Error(`Main Task ${id} already exists`);
     }
 
     const subTaskList: SubTask[] = subTasks.map((sub, index) => ({
@@ -79,11 +79,11 @@ export class TaskQueue {
       reject = rej;
     });
 
-    const taskRecord: TaskRecord = {
+    const taskRecord: MainTaskRecord = {
       id,
-      mainTaskFn,
+      subConcurrentSize,
       subTasks: subTaskList,
-      subConcurrent,
+      mainTaskPreFn,
       status: 'pending',
       controller: new AbortController(),
       resolve,
@@ -103,20 +103,23 @@ export class TaskQueue {
    */
   public cancelTask(id: string) {
     const task = this.taskMap.get(id);
-    if (!task) return;
+
+    if (!task) {
+      throw new Error(`Main Task ${id} does not exist`);
+    }
 
     task.subTasks.forEach(subtask => {
       subtask.fn.cancel?.();
     });
 
     task.controller.abort();
+
+    // 从队列中移除
     task.status = 'canceled';
+    this.queue = this.queue.filter(item => item.id !== id);
     this.taskMap.delete(id);
 
     task.reject('canceled');
-
-    // 从队列中移除
-    this.queue = this.queue.filter(item => item.id !== id);
 
     return task;
   }
@@ -135,15 +138,15 @@ export class TaskQueue {
   /**
    * 执行主任务
    */
-  private async executeMainTask(task: TaskRecord) {
+  private async executeMainTask(task: MainTaskRecord) {
     task.status = 'running';
 
     try {
       // 主任务前置逻辑
-      if (task.mainTaskFn) await task.mainTaskFn();
+      if (task.mainTaskPreFn) await task.mainTaskPreFn();
 
       // 执行子任务队列
-      const results = await this.runSubtasks(task);
+      const results = await this.runSubTasks(task);
 
       task.status = 'completed';
       task.resolve(results);
@@ -154,7 +157,7 @@ export class TaskQueue {
       this.running--;
       this.taskMap.delete(task.id);
 
-      // 执行下一个主任务
+      // 继续执行下一个任务
       this.dequeue();
     }
   }
@@ -162,8 +165,8 @@ export class TaskQueue {
   /**
    * 子任务并发调度
    */
-  private async runSubtasks(task: TaskRecord) {
-    const { subTasks, subConcurrent, controller } = task;
+  private async runSubTasks(task: MainTaskRecord) {
+    const { subTasks, subConcurrentSize, controller } = task;
     const results: any[] = [];
     let activeCount = 0;
     let index = 0;
@@ -171,33 +174,33 @@ export class TaskQueue {
 
     while (index < subTasks.length || activeCount > 0) {
       // 1、填充并发槽
-      while (index < subTasks.length && activeCount < subConcurrent && !hasError) {
+      while (index < subTasks.length && activeCount < subConcurrentSize && !hasError) {
         if (controller.signal.aborted) {
           hasError = true;
           break;
         }
 
-        const subtask = subTasks[index++];
+        const subTask = subTasks[index++];
         activeCount++;
 
         // 异步执行子任务
-        subtask
+        subTask
           .fn()
           .then(result => {
             results.push(result);
           })
           .catch(err => {
             hasError = true;
-            subtask.fn.cancel?.();
+            subTask.fn.cancel?.();
             controller.abort();
-            throw new Error(`Subtask ${subtask.id} failed: ${err}`);
+            throw new Error(`Subtask ${subTask.id} failed: ${err}`);
           })
           .finally(() => {
             activeCount--;
           });
       }
 
-      // 2、短时间让出控制权（避免空转）
+      // 2、短时间让出控制权
       if (activeCount > 0 && !hasError) {
         await new Promise(resolve => setTimeout(resolve, 10));
       }
