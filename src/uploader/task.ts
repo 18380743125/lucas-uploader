@@ -127,7 +127,7 @@ export class UploadTask {
     const { taskQueue, eventRegistry } = this.options;
 
     if (this.status === fileStatus.UPLOADING) {
-      taskQueue.cancelTask(this.taskId);
+      taskQueue.cancelTask(this.taskId, 'pause');
       this.status = fileStatus.PAUSE;
       eventRegistry.emit(EventTypeEnum.PROGRESS, this);
     }
@@ -214,6 +214,9 @@ export class UploadTask {
         eventRegistry.emit(EventTypeEnum.TASK_SUCCESS, result, this);
       })
       .catch(err => {
+        if (err === 'pause') {
+          return;
+        }
         this.status = fileStatus.FAIL;
         eventRegistry.emit(EventTypeEnum.ERROR, err, this);
       });

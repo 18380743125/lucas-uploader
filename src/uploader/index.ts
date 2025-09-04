@@ -12,9 +12,6 @@ export interface UploaderOptions {
   // 是否单文件上传
   singleFile?: boolean;
 
-  // 上传方式
-  method?: 'multipart';
-
   // 请求头
   headers?: Record<string, string>;
 
@@ -68,7 +65,6 @@ const defaultConfig: UploaderOptions = {
   target: '/',
   fileParameterName: 'file',
   singleFile: false,
-  method: 'multipart',
   headers: {},
   withCredentials: false,
   simultaneousUploads: 3,

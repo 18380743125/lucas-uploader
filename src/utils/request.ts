@@ -102,11 +102,11 @@ function _request(
       reject(new Error('Request timeout'));
     };
 
+    xhr.open(method, requestUrl);
+
     Object.entries(headers).forEach(([key, value]) => {
       xhr.setRequestHeader(key, value);
     });
-
-    xhr.open(method, requestUrl);
 
     if (data && method.toUpperCase() !== 'GET') {
       if (data instanceof FormData) {

@@ -1,86 +1,82 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>多方式上传文件</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>多方式上传文件</title>
 
-  <!-- IMPORT CSS -->
-  <link rel="stylesheet" href="css/reset.min.css"/>
-  <link rel="stylesheet" href="css/upload.css"/>
-  <style>
-    html,
-    body {
-      overflow-x: hidden;
-    }
+    <!-- IMPORT CSS -->
+    <link rel="stylesheet" href="css/reset.min.css" />
+    <link rel="stylesheet" href="css/upload.css" />
+    <style>
+      html,
+      body {
+        overflow-x: hidden;
+      }
 
-    .container {
-      padding: 60px 80px;
-    }
-  </style>
-</head>
+      .container {
+        padding: 60px 80px;
+      }
+    </style>
+  </head>
 
-<body>
-<div class="container">
-  <section class="upload_box" id="upload">
-    <div class="upload_drag">
-      <i class="icon"></i>
-      <span class="text">将文件拖到此处，或<a href="javascript:" class="upload_submit">点击上传</a></span>
+  <body>
+    <div class="container">
+      <section class="upload_box" id="upload">
+        <div class="upload_drag">
+          <i class="icon"></i>
+          <span class="text">将文件拖到此处，或<a href="javascript:" class="upload_submit">点击上传</a></span>
+        </div>
+        <div class="upload_mark">正在上传中，请稍等...</div>
+      </section>
     </div>
-    <div class="upload_mark">正在上传中，请稍等...</div>
-  </section>
-</div>
 
-<script src="/dist/index.js"></script>
+    <script type="module">
+      import { LucasUploader } from '../dist/index.mjs';
 
-<script>
-  const {LucasUploader} = Lucas;
+      const uploadDOM = document.querySelector('#upload');
 
-  const uploadDOM = document.querySelector('#upload');
+      const uploader = new LucasUploader({
+        target: 'https://14.103.231.136/api/file/chunk-upload',
+        // target: 'https://14.103.231.136/api/file/upload',
+        headers: {
+          authorization:
+            'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0MDAxIiwiTE9HSU5fVVNFUl9JRCI6MTkzNzc3NzI2MzE4OTY4ODMyMCwiUkVORVdBTF9USU1FIjoxNzUxOTExMjQwMjcwLCJleHAiOjE3NTE5NTQ0NDB9.HdEdXNg2a9fnwYgwD7GZmHaL8XTKVQUGXpvtGKccreo'
+        },
+        chunkSize: 256 * 1024,
+        chunkFlag: true,
 
-  const uploader = new LucasUploader({
-    target: 'https://14.103.231.136/api/file/chunk-upload',
-    // target: 'https://14.103.231.136/api/file/upload',
-    headers: {
-      authorization:
-        'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0MDAxIiwiTE9HSU5fVVNFUl9JRCI6MTkzNzc3NzI2MzE4OTY4ODMyMCwiUkVORVdBTF9USU1FIjoxNzUxOTExMjQwMjcwLCJleHAiOjE3NTE5NTQ0NDB9.HdEdXNg2a9fnwYgwD7GZmHaL8XTKVQUGXpvtGKccreo'
-    },
-    chunkSize: 256 * 1024,
-    chunkFlag: true,
+        getParams: file => {
+          return {};
+        }
+      });
 
-    getParams: file => {
-      return {};
-    }
-  });
+      uploader.assignBrowse(uploadDOM);
+      uploader.assignDrop(uploadDOM);
 
-  uploader.assignBrowse(uploadDOM);
-  uploader.assignDrop(uploadDOM);
+      uploader.on('added', (currentTasks, taskList, e) => {
+        console.log('added');
+        setTimeout(() => {
+          uploader.taskList[0].bootstrap();
+          setTimeout(() => {
+            uploader.taskList[0].pause();
+          }, 2000);
+        }, 300);
+      });
 
-  uploader.on('added', (currentTasks, taskList, e) => {
-    console.log('added');
-    setTimeout(() => {
-      console.log(uploader.taskList)
-      uploader.taskList[0].pause()
-      setTimeout(() => {
-        uploader.taskList[0].resume()
-      }, 10000)
-    }, 2000)
-  });
+      uploader.on('progress', currentTask => {
+        console.log(`progress：`, currentTask);
+      });
 
-  uploader.on('progress', currentTask => {
-    console.log(currentTask);
-  });
+      uploader.on('success', currentTask => {});
 
-  uploader.on('success', currentTask => {
-  });
+      uploader.on('complete', (result, currentTask) => {
+        console.log('complete', result, task);
+      });
 
-  uploader.on('complete', (result, currentTask) => {
-    console.log('complete', result, task);
-  });
-
-  uploader.on('error', message => {
-    console.log(message);
-  });
-</script>
-</body>
+      uploader.on('error', message => {
+        console.log('error at', message);
+      });
+    </script>
+  </body>
 </html>

@@ -101,11 +101,11 @@ export class TaskQueue {
   /**
    * 取消任务
    */
-  public cancelTask(id: string) {
+  public cancelTask(id: string, reason?: string) {
     const task = this.taskMap.get(id);
 
     if (!task) {
-      throw new Error(`Main Task ${id} does not exist`);
+      return null;
     }
 
     task.subTasks.forEach(subtask => {
@@ -119,7 +119,7 @@ export class TaskQueue {
     this.queue = this.queue.filter(item => item.id !== id);
     this.taskMap.delete(id);
 
-    task.reject('canceled');
+    task.reject(reason || 'canceled');
 
     return task;
   }
