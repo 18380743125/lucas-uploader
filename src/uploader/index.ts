@@ -38,23 +38,32 @@ export interface UploaderOptions {
 export type EventType = 'added' | 'progress' | 'success' | 'merge' | 'complete' | 'error' | 'warning';
 
 export enum EventTypeEnum {
+  // 创建任务
   ADDED = 'added',
 
+  // 状态和进度
   PROGRESS = 'progress',
 
+  // 子任务执行完成
   SUCCESS = 'success',
 
-  ERROR = 'error',
-
+  // 触发分片合并
   MERGE = 'merge',
 
-  TASK_SUCCESS = 'task-success',
-
-  TASK_CANCEL = 'task-cancel',
-
+  // 所有任务完成
   COMPLETE = 'complete',
 
-  WARNING = 'warning'
+  // 触发错误
+  ERROR = 'error',
+
+  // 触发警告
+  WARNING = 'warning',
+
+  // 单个主任务执行完成
+  TASK_SUCCESS = 'task-success',
+
+  // 单个主任务取消
+  TASK_CANCEL = 'task-cancel'
 }
 
 export enum UploadWarningEnum {
@@ -91,26 +100,28 @@ export class LucasUploader {
 
     this.eventRegistry = new EventRegistry();
 
-    // 监听上传任务完成
+    // 监听主任务完成
     this.eventRegistry.on(EventTypeEnum.TASK_SUCCESS, (_result, task: UploadTask) => {
       this.removeTask(task, EventTypeEnum.TASK_SUCCESS);
     });
 
-    // 监听文件合并事件
-    this.eventRegistry.on(EventTypeEnum.MERGE, (task: UploadTask) => {
+    // 监听主任务取消
+    this.eventRegistry.on(EventTypeEnum.TASK_CANCEL, (task: UploadTask) => {
       this.removeTask(task);
     });
 
-    // 监听上传任务取消
-    this.eventRegistry.on(EventTypeEnum.TASK_CANCEL, (task: UploadTask) => {
+    // 监听分片合并
+    this.eventRegistry.on(EventTypeEnum.MERGE, (task: UploadTask) => {
       this.removeTask(task);
     });
   }
 
+  // 监听事件
   public on(eventName: EventType, eventFn: (...args: any[]) => unknown) {
     this.eventRegistry.on(eventName, eventFn);
   }
 
+  // 取消监听事件
   public off(eventName: EventType, eventFn: (...args: any[]) => unknown) {
     this.eventRegistry.off(eventName, eventFn);
   }
